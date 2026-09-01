@@ -1,0 +1,29 @@
+POLICY DOCUMENT
+Policy Number: POL-0023
+Policyholder: Naledi Mofokeng
+Coverage Type: Device Insurance
+Insured Items: Smartphone and smartwatch
+Insured Value: R25,000
+Policy Start Date: 1 March 2024
+Premium Frequency: Monthly
+
+COVER DESCRIPTION
+Comprehensive cover for the listed smartphone and smartwatch against
+theft, accidental damage, and screen shattering. A maximum of two screen
+replacement claims are allowed per 12-month cycle.
+
+WAITING PERIOD
+A 14-day waiting period applies to all accidental damage and screen
+replacement claims. 0 days for theft claims.
+
+EXCLUSIONS
+- Liquid damage or complete submersion in water, regardless of the
+  device's IP rating
+- Cosmetic damage, such as scratches or dents that do not impact the
+  device's functionality
+- Loss of the device where no theft is involved (misplacing it)
+
+CLAIMS PROCESS
+For theft, a SAPS case number and blacklisting confirmation from the
+network provider are required. For screen damage, the device must be
+brought to an approved repair centre.

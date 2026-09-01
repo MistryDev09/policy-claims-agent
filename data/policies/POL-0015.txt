@@ -1,0 +1,30 @@
+POLICY DOCUMENT
+Policy Number: POL-0015
+Policyholder: Hendrik Venter
+Coverage Type: Home Insurance (Buildings & Contents)
+Buildings Sum Insured: R2,500,000
+Contents Sum Insured: R500,000
+Policy Start Date: 1 October 2023
+Premium Frequency: Annual
+
+COVER DESCRIPTION
+Covers the main residential building structure and household contents
+against fire, theft, natural disasters, and malicious damage. Total
+contents cover is limited to R500,000, with a specific sub-limit of
+R20,000 for portable electronic devices and laptops kept in the home.
+
+WAITING PERIOD
+0 days for fire, storm damage, and natural disasters. A 7-day waiting
+period applies to theft and burglary claims unless forced entry can be
+proven.
+
+EXCLUSIONS
+- Damage caused by long-term subsidence, heave, or landslip
+- Theft occurring if the property is left unoccupied for more than 30
+  consecutive days without notifying the insurer
+- Damage resulting from rising damp or gradual wear and tear
+
+CLAIMS PROCESS
+Provide an inventory of stolen or damaged items, purchase receipts for
+electronics, and a SAPS case number for burglary. A loss adjuster
+assessment is required for structural damage claims above R50,000.

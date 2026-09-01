@@ -1,0 +1,128 @@
+[
+  {
+    "claim_id": "CLM-001",
+    "policy_id": "POL-0001",
+    "claim_type": "life",
+    "amount": 500000,
+    "date_filed": "2024-08-01",
+    "status": "approved",
+    "reason_codes": ["WITHIN_LIMIT", "WAITING_PERIOD_SATISFIED", "NO_EXCLUSION_MATCHED"]
+  },
+  {
+    "claim_id": "CLM-002",
+    "policy_id": "POL-0002",
+    "claim_type": "critical_illness",
+    "amount": 250000,
+    "date_filed": "2025-12-15",
+    "status": "denied",
+    "reason_codes": ["WAITING_PERIOD_NOT_MET"]
+  },
+  {
+    "claim_id": "CLM-003",
+    "policy_id": "POL-0004",
+    "claim_type": "disability",
+    "amount": 180000,
+    "date_filed": "2025-09-10",
+    "status": "approved",
+    "reason_codes": ["WITHIN_LIMIT", "WAITING_PERIOD_SATISFIED", "NO_EXCLUSION_MATCHED"]
+  },
+  {
+    "claim_id": "CLM-004",
+    "policy_id": "POL-0005",
+    "claim_type": "motor",
+    "amount": 45000,
+    "date_filed": "2026-05-12",
+    "status": "approved",
+    "reason_codes": ["WITHIN_LIMIT", "WAITING_PERIOD_SATISFIED", "NO_EXCLUSION_MATCHED"]
+  },
+  {
+    "claim_id": "CLM-005",
+    "policy_id": "POL-0006",
+    "claim_type": "home",
+    "amount": 500000,
+    "date_filed": "2026-01-20",
+    "status": "denied",
+    "reason_codes": ["EXCEEDS_SUB_LIMIT"]
+  },
+  {
+    "claim_id": "CLM-006",
+    "policy_id": "POL-0007",
+    "claim_type": "travel",
+    "amount": 12000,
+    "date_filed": "2026-04-10",
+    "status": "denied",
+    "reason_codes": ["EXCLUSION_MATCHED_PRE_EXISTING_CONDITION_UNDECLARED"]
+  },
+  {
+    "claim_id": "CLM-007",
+    "policy_id": "POL-0009",
+    "claim_type": "critical_illness",
+    "amount": 400000,
+    "date_filed": "2026-04-25",
+    "status": "pending",
+    "reason_codes": ["UNDER_REVIEW"]
+  },
+  {
+    "claim_id": "CLM-008",
+    "policy_id": "POL-0010",
+    "claim_type": "motor",
+    "amount": 60000,
+    "date_filed": "2026-01-05",
+    "status": "denied",
+    "reason_codes": ["EXCLUSION_MATCHED_COLLISION_NOT_COVERED"]
+  },
+  {
+    "claim_id": "CLM-009",
+    "policy_id": "POL-0014",
+    "claim_type": "motor",
+    "amount": 45000,
+    "date_filed": "2024-08-12",
+    "status": "denied",
+    "reason_codes": ["EXCLUSION_MATCHED_COLLISION_NOT_COVERED"]
+  },
+  {
+    "claim_id": "CLM-010",
+    "policy_id": "POL-0016",
+    "claim_type": "pet",
+    "amount": 18000,
+    "date_filed": "2024-02-10",
+    "status": "denied",
+    "reason_codes": ["EXCLUSION_MATCHED_HEREDITARY_CONDITIONS"]
+  },
+  {
+    "claim_id": "CLM-011",
+    "policy_id": "POL-0015",
+    "claim_type": "home",
+    "amount": 25000,
+    "date_filed": "2024-06-05",
+    "status": "approved",
+    "reason_codes": ["SUB_LIMIT_APPLIED_PORTABLE_ELECTRONICS_20000"]
+  },
+  {
+    "claim_id": "CLM-012",
+    "policy_id": "POL-0018",
+    "claim_type": "critical_illness",
+    "amount": 1000000,
+    "date_filed": "2024-03-15",
+    "status": "denied",
+    "reason_codes": ["WAITING_PERIOD_NOT_MET"]
+  },
+  {
+    "claim_id": "CLM-013",
+    "policy_id": "POL-0021",
+    "claim_type": "travel",
+    "amount": 8000,
+    "date_filed": "2024-07-22",
+    "status": "approved",
+    "reason_codes": ["WITHIN_LIMIT", "NO_EXCLUSION_MATCHED"]
+  },
+  {
+    "claim_id": "CLM-014",
+    "policy_id": "POL-0020",
+    "claim_type": "funeral",
+    "amount": 25000,
+    "date_filed": "2024-09-01",
+    "status": "approved",
+    "reason_codes": ["SUB_LIMIT_APPLIED_CHILD_UNDER_21_20000"]
+  }
+]

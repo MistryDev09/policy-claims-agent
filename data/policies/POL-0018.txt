@@ -1,0 +1,30 @@
+POLICY DOCUMENT
+Policy Number: POL-0018
+Policyholder: Tariq Desai
+Coverage Type: Critical Illness Cover
+Sum Assured: R1,000,000
+Policy Start Date: 1 February 2024
+Premium Frequency: Monthly
+
+COVER DESCRIPTION
+Provides a tax-free lump sum on confirmed medical diagnosis of one of the
+specified critical illnesses, including cancer, heart attack, stroke, and
+organ failure. Payout is tiered based on severity of the illness.
+
+WAITING PERIOD
+90 days from the Policy Start Date. Any illness diagnosed within this
+90-day window will not be covered, even if the diagnosis is confirmed
+after the waiting period has technically expired.
+
+EXCLUSIONS
+- Any critical illness directly linked to pre-existing type 2 diabetes
+  diagnosed prior to policy inception
+- Conditions resulting from intentional self-inflicted injury or
+  attempted suicide
+- Cancers classified as Stage 0 or in situ
+
+CLAIMS PROCESS
+Submit a specialist medical report detailing the exact diagnosis,
+histology reports (for cancer), and the completed claim form. The
+insurer reserves the right to request an independent medical
+examination.
