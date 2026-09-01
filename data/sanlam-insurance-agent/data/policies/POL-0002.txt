@@ -1,0 +1,28 @@
+POLICY DOCUMENT
+Policy Number: POL-0002
+Policyholder: Aisha Patel
+Coverage Type: Critical Illness Cover
+Sum Assured: R250,000
+Policy Start Date: 1 November 2025
+Premium Frequency: Monthly
+
+COVER DESCRIPTION
+Pays a lump sum of R250,000 on first diagnosis of one of the listed critical illnesses
+(cancer, heart attack, stroke, kidney failure, major organ transplant), provided the
+policyholder survives the applicable survival period of 14 days after diagnosis.
+
+WAITING PERIOD
+A waiting period of 180 days applies from the Policy Start Date for all conditions
+except accidental trauma-related claims (e.g. loss of limbs due to accident), which
+are covered from Day 1.
+
+EXCLUSIONS
+- Any cancer diagnosed, or for which symptoms were investigated, before the Policy
+  Start Date
+- Congenital conditions present from birth
+- Illness arising directly from participation in professional contact sport
+
+CLAIMS PROCESS
+Claimant must submit specialist medical reports confirming diagnosis, dated after the
+waiting period has elapsed. Claims for conditions diagnosed within the 180-day waiting
+period will be declined regardless of severity.

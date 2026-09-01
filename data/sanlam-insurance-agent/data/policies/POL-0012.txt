@@ -1,0 +1,28 @@
+POLICY DOCUMENT
+Policy Number: POL-0012
+Policyholder: Chloe van Wyk
+Coverage Type: Device Insurance
+Insured Item: MacBook Pro 14-inch
+Insured Value: R28,000
+Policy Start Date: 1 June 2026
+Premium Frequency: Monthly
+
+COVER DESCRIPTION
+Covers accidental damage and theft of the listed device, up to its insured
+value of R28,000, minus a R750 excess per claim.
+
+WAITING PERIOD
+A waiting period of 14 days applies to theft claims from the Policy Start Date.
+Accidental damage is covered from Day 1.
+
+EXCLUSIONS
+- Theft from an unattended device left in a public place (e.g. a car, cafe
+  table, or unlocked bag)
+- Water damage caused by submersion beyond the device's stated IP rating
+- Mechanical or electrical breakdown occurring after the manufacturer's
+  warranty period has expired (this is device insurance for accidental damage
+  and theft, not an extended warranty)
+
+CLAIMS PROCESS
+Theft claims require a police case number. Accidental damage claims require
+photos of the damage and a brief written description of how it occurred.

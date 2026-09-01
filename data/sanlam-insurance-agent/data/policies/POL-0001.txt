@@ -1,0 +1,31 @@
+POLICY DOCUMENT
+Policy Number: POL-0001
+Policyholder: Thabo Nkosi
+Coverage Type: Life Cover
+Sum Assured: R500,000
+Policy Start Date: 15 January 2024
+Premium Frequency: Monthly
+
+COVER DESCRIPTION
+This policy pays out the full Sum Assured of R500,000 to the nominated beneficiary
+in the event of the policyholder's death from any cause, subject to the terms below.
+
+WAITING PERIOD
+A general waiting period of 90 days applies from the Policy Start Date. Claims arising
+from natural causes of death within the first 90 days will not be paid, except in the
+case of accidental death, which is covered from Day 1.
+
+SUICIDE CLAUSE
+Death by suicide is excluded for the first 24 months of the policy. Thereafter it is
+covered under the standard terms.
+
+EXCLUSIONS
+- Death caused by self-inflicted injury within the first 24 months of the policy
+- Death resulting from non-disclosure of a material pre-existing medical condition
+  at application stage
+- Death while the policyholder is committing a criminal act
+
+CLAIMS PROCESS
+Beneficiaries must submit a certified death certificate, ID copy, and completed claim
+form within 90 days of death. Claims are assessed against the exclusions above and the
+waiting period rules.

@@ -1,0 +1,29 @@
+POLICY DOCUMENT
+Policy Number: POL-0009
+Policyholder: Rajesh Naidoo
+Coverage Type: Critical Illness Cover
+Sum Assured: R400,000
+Policy Start Date: 10 January 2026
+Premium Frequency: Monthly
+
+COVER DESCRIPTION
+Pays a lump sum of R400,000 on first diagnosis of a listed critical illness,
+subject to a 14-day survival period after diagnosis, and subject to the waiting
+period and exclusions below.
+
+WAITING PERIOD
+A waiting period of 90 days applies from the Policy Start Date for all listed
+conditions.
+
+EXCLUSIONS
+- Any illness related to HIV/AIDS, unless the HIV Cover Rider has been purchased
+  (not applicable to this policy)
+- Death or illness resulting from self-inflicted harm
+- Conditions for which the policyholder had received medical advice, treatment,
+  or diagnosis in the 12 months prior to the Policy Start Date
+
+CLAIMS PROCESS
+A specialist diagnosis report and supporting pathology results must accompany
+the claim form. Claims filed during the waiting period will be declined and the
+policyholder invited to resubmit once the waiting period has passed, provided
+the diagnosis date is genuinely after the waiting period ends.
