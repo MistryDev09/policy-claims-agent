@@ -129,3 +129,29 @@ or default age-band rates.
 `coverage_type` exactly (verified programmatically when this data was
 built). If you hand-add more claims or policies later, re-run that check
 — a silent typo here fails quietly instead of throwing an error.
+
+## Retrieval trap — policy ID + common term causes cross-document bleed
+
+- **Query:** "What is the waiting period for theft claims under POL-0006?"
+- **Expected:** chunk from POL-0006 (theft waiting period: 30 days)
+- **Actual:** retrieved chunks from POL-0014, POL-0010, POL-0012,
+  POL-0013, none from POL-0006 — all share the word "theft" (motor and
+  device policies). Reproducible on retry.
+
+**Root cause:** S3 Vectors is pure vector/semantic search, no keyword or
+exact-match layer. A semantically rich term ("theft") clusters strongly
+across documents and can outweigh a low-semantic-weight identifier
+("POL-0006") in similarity ranking. Known category of limitation for
+vector-only retrieval, not a config bug — a direct tradeoff of choosing
+S3 Vectors over OpenSearch Serverless's hybrid search.
+
+**Secondary finding:** the generation model's refusal message ("Sorry, I
+am unable to assist you with this request") is identical whether (a) the
+policy genuinely has no matching coverage (correct, grounded refusal) or
+(b) retrieval pulled the wrong document entirely (this failure). Can't
+currently distinguish the two from the response alone.
+
+**Status:** not fixed, documented for Day 5 eval design and the README
+limitations section. Possible future mitigation: pass policy ID as a
+metadata filter at query time instead of relying on pure semantic match.
+Out of scope for Day 2.
