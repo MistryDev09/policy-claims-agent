@@ -1,0 +1,199 @@
+import json
+import os
+from datetime import date, timedelta
+
+import pytest
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+with open(os.path.join(REPO_ROOT, "data", "claims.json")) as f:
+    CLAIMS = json.load(f)
+
+with open(os.path.join(REPO_ROOT, "data", "policies.json")) as f:
+    POLICIES = {p["policy_id"]: p for p in json.load(f)}
+
+# The handler's actual event shape (read from lambdas/check_eligibility/
+# check_eligibility.py): policy_id, claim_type, claim_amount, claim_date
+# are all REQUIRED (claim_date is NOT optional, despite the task prompt's
+# assumption that it might be) — cli_demo.py defaults claim_date to
+# today's date when the flag is omitted, but the handler itself has no
+# default and errors without it. There is no "claim_category" field;
+# the equivalent is "sub_limit_category" (a key into the policy's
+# sub_limits dict). Both of these are real fields on the handler, so no
+# xfail is needed for missing-field reasons anywhere in this file.
+
+
+def _derive_extra_fields(claim, policy):
+    """
+    claims.json records outcomes as human-readable reason_codes, not as
+    the handler's structured optional fields. To replay a claim against
+    the real handler (which requires exclusion_code / sub_limit_category
+    to be supplied explicitly — that's the point of making them
+    structured instead of free text) we derive them here from the
+    reason codes:
+      - "EXCLUSION_MATCHED_<CODE>"       -> exclusion_code = "<CODE>"
+      - "SUB_LIMIT_APPLIED_<CATEGORY>_<LIMIT>" -> sub_limit_category,
+        matched against the policy's real sub_limits keys (the naive
+        split on "_" doesn't work uniformly since categories like
+        "child_under_21" contain underscores before the numeric suffix).
+    This is a test-harness inference for replay purposes only — a real
+    caller (the Day 4 agent) would supply these directly from its own
+    claim intake, not by parsing a reason code string.
+    """
+    extra = {}
+    for code in claim.get("reason_codes", []):
+        if code.startswith("EXCLUSION_MATCHED_"):
+            extra["exclusion_code"] = code[len("EXCLUSION_MATCHED_"):]
+        elif code.startswith("SUB_LIMIT_APPLIED_"):
+            body = code[len("SUB_LIMIT_APPLIED_"):]
+            for category in policy.get("sub_limits", {}):
+                if body.upper().startswith(category.upper()):
+                    extra["sub_limit_category"] = category
+                    break
+    return extra
+
+
+# Approved claims whose reason code names a sub-limit — approved_amount
+# must equal the sub-limit value quoted in that code, not the claimed
+# amount.
+APPROVED_SUBLIMIT_AMOUNTS = {
+    "CLM-005": 350000,  # POL-0006 contents sub-limit
+    "CLM-011": 20000,  # POL-0015 portable_electronics sub-limit
+    "CLM-014": 20000,  # POL-0020 child_under_21 sub-limit
+}
+
+# CLM-007 is "pending" — this handler only ever returns eligible True/False,
+# it doesn't model a pending outcome, so there's nothing meaningful to
+# assert against. Explicitly skipped (not xfailed — there's no expected
+# failure here, just an input the handler was never designed to classify)
+# so it still shows up in the test report rather than silently vanishing.
+REPLAY_PARAMS = [
+    pytest.param(
+        c,
+        id=c["claim_id"],
+        marks=pytest.mark.skip(reason="status is 'pending' — handler has no pending outcome to compare against")
+        if c["status"] == "pending"
+        else (),
+    )
+    for c in CLAIMS
+]
+
+
+@pytest.mark.parametrize("claim", REPLAY_PARAMS)
+def test_replay_against_claims_json(check_eligibility, claim):
+    policy = POLICIES[claim["policy_id"]]
+    extra = _derive_extra_fields(claim, policy)
+
+    event = {
+        "policy_id": claim["policy_id"],
+        "claim_type": claim["claim_type"],
+        "claim_amount": claim["amount"],
+        "claim_date": claim["date_filed"],
+        **extra,
+    }
+    result = check_eligibility(event, None)
+
+    assert result["error"] is None, f"unexpected validation error for {claim['claim_id']}: {result.get('error')}"
+
+    expected_eligible = claim["status"] == "approved"
+    assert result["eligible"] is expected_eligible
+
+    if expected_eligible:
+        expected_amount = APPROVED_SUBLIMIT_AMOUNTS.get(claim["claim_id"], claim["amount"])
+        assert result["approved_amount"] == expected_amount
+    else:
+        assert result["approved_amount"] == 0
+
+
+def test_nonexistent_policy_errors_no_crash(check_eligibility):
+    result = check_eligibility(
+        {"policy_id": "POL-9999", "claim_type": "life", "claim_amount": 100000, "claim_date": "2024-01-01"},
+        None,
+    )
+    assert result["error"] == {"policy_id": "not found"}
+    assert "eligible" not in result
+    # error results echo inputs back
+    assert result["policy_id"] == "POL-9999"
+    assert result["claim_amount"] == 100000
+
+
+def test_claim_type_mismatch(check_eligibility):
+    # POL-0001 is a life policy; filing a motor claim against it.
+    result = check_eligibility(
+        {"policy_id": "POL-0001", "claim_type": "motor", "claim_amount": 10000, "claim_date": "2024-08-01"},
+        None,
+    )
+    assert result["error"] is None
+    assert result["eligible"] is False
+    assert result["approved_amount"] == 0
+    assert result["reason"] == "claim_type does not match policy coverage_type"
+
+
+def test_claim_exceeds_overall_coverage_amount_is_capped(check_eligibility):
+    # POL-0001 coverage_amount is 500,000; claim above it and past its
+    # waiting period.
+    policy = POLICIES["POL-0001"]
+    result = check_eligibility(
+        {
+            "policy_id": "POL-0001",
+            "claim_type": "life",
+            "claim_amount": policy["coverage_amount"] + 100000,
+            "claim_date": "2024-08-01",
+        },
+        None,
+    )
+    assert result["error"] is None
+    assert result["eligible"] is True
+    assert result["approved_amount"] == policy["coverage_amount"]
+    assert f"CAPPED_AT_COVERAGE_AMOUNT_{policy['coverage_amount']}" in result["reason"]
+
+
+def test_waiting_period_boundary(check_eligibility):
+    # Computed from policies.json itself, not hardcoded — POL-0001's
+    # start_date + waiting_period_days is the cutoff.
+    policy = POLICIES["POL-0001"]
+    start = date.fromisoformat(policy["start_date"])
+    cutoff = start + timedelta(days=policy["waiting_period_days"])
+
+    one_day_before = cutoff - timedelta(days=1)
+    result_before = check_eligibility(
+        {
+            "policy_id": "POL-0001",
+            "claim_type": "life",
+            "claim_amount": 100000,
+            "claim_date": one_day_before.isoformat(),
+        },
+        None,
+    )
+    assert result_before["error"] is None
+    assert result_before["eligible"] is False
+    assert result_before["reason"] == "WAITING_PERIOD_NOT_MET"
+
+    result_on_cutoff = check_eligibility(
+        {
+            "policy_id": "POL-0001",
+            "claim_type": "life",
+            "claim_amount": 100000,
+            "claim_date": cutoff.isoformat(),
+        },
+        None,
+    )
+    assert result_on_cutoff["error"] is None
+    assert result_on_cutoff["eligible"] is True
+
+
+def test_error_echoes_inputs_and_keys_error_by_field(check_eligibility):
+    event = {
+        "policy_id": "POL-0001",
+        "claim_type": "life",
+        "claim_amount": -50,
+        "claim_date": "not-a-date",
+    }
+    result = check_eligibility(event, None)
+
+    assert set(result["error"].keys()) == {"claim_amount", "claim_date"}
+    assert "eligible" not in result
+    assert result["policy_id"] == "POL-0001"
+    assert result["claim_type"] == "life"
+    assert result["claim_amount"] == -50
+    assert result["claim_date"] == "not-a-date"

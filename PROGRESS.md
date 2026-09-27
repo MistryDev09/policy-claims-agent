@@ -218,6 +218,57 @@ functions invoked directly by `cli_demo.py`.
 
 ---
 
+## Day 3 addendum — pytest suite
+
+Added a real automated test suite in `tests/` (`conftest.py`,
+`test_calculate_premium.py`, `test_check_eligibility.py`,
+`test_cli_demo.py`) that calls both handlers directly as Python functions
+and drives `cli_demo.py` via `subprocess` — no AWS calls, no mocking.
+Run with `python3 -m pytest -v` (see `CLAUDE.md`'s Build/test commands).
+
+**Result: 43 passed, 1 skipped, 0 failed.** The one skip is CLM-005's
+sibling CLM-007, which is `pending` in `claims.json` — the handler only
+ever returns `eligible: True/False`, so there's nothing to assert a
+pending claim against; skipped with a reason rather than silently
+dropped. No test was weakened to match the code's output — expected
+premiums were computed by hand from `rate_table.json`, and no handler
+code, data file, or `cli_demo.py` was touched to make a test pass.
+
+**Notable finding — no bugs surfaced, but replay required test-side
+inference:** the eligibility replay test parametrizes over all 14 claims
+in `claims.json` and re-derives the expected `eligible`/`approved_amount`
+from each claim's real outcome. `claims.json` only stores human-readable
+`reason_codes` (e.g. `"SUB_LIMIT_APPLIED_CONTENTS_350000"`,
+`"EXCLUSION_MATCHED_COLLISION_NOT_COVERED"`), not the handler's
+structured optional fields (`sub_limit_category`, `exclusion_code`) — so
+the test derives those fields from the reason code text purely as a
+test-harness convenience for replay. With that derivation, **all 13
+non-pending claims replay correctly against the handler**, including the
+ones the task brief expected might need `xfail` (CLM-006, CLM-008,
+CLM-009, CLM-010 — all exclusion-based denials): the handler's generic
+`exclusion_code` field is sufficient to reproduce them once the exact
+code is supplied, so none needed `xfail`. This is a genuine (if narrow)
+validation that `check_claim_eligibility`'s logic agrees with every
+recorded outcome in the synthetic dataset.
+
+**Assumptions made about the handler's event shape** (documented in the
+test file itself, repeated here for visibility):
+- `claim_date` is **required**, not optional — the task brief assumed it
+  might be optional; `cli_demo.py` defaults it to today's date when the
+  flag is omitted, but the handler itself errors without it.
+- There is no `claim_category` field (the brief's guess); the real field
+  is `sub_limit_category`, a key into the policy's `sub_limits` dict.
+- Deriving `exclusion_code`/`sub_limit_category` from `claims.json`'s
+  `reason_codes` for the replay test is a test-only convenience — the
+  real Day 4 agent will supply these fields directly from its own claim
+  intake, not by parsing a reason-code string.
+
+**Nothing left open as a bug from this pass** — no failing test is being
+carried forward; the single skip (CLM-007, pending) is a scope boundary
+of the handler, not a defect.
+
+---
+
 ## Day 4-6
 
 Not started. See original brief for task breakdown. Day 4 should reuse

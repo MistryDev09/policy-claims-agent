@@ -56,4 +56,7 @@ before starting non-trivial work.
   it first.
 
 ## Build/test commands
-*(empty — fill in once Lambdas and the agent loop exist, Day 3 onward)*
+- Run the full test suite (both Lambda handlers + `cli_demo.py`, no AWS,
+  no network): `python3 -m pytest -v` from the repo root. First-time setup:
+  `pip install pytest` (not yet added to a `requirements.txt` — this repo
+  doesn't have one yet).
