@@ -1,0 +1,209 @@
+import json
+import os
+from datetime import date, timedelta
+
+# Loaded once at module level (warm-container reuse), resolved relative to
+# this file's own location — not the process cwd — so it still works once
+# packaged into a Lambda deployment zip (cwd there is /var/task).
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+with open(os.path.join(BASE_DIR, "policies.json")) as f:
+    POLICIES_BY_ID = {p["policy_id"]: p for p in json.load(f)}
+
+DATE_FIELDS = ["claim_date", "diagnosis_date", "disability_onset_date"]
+
+
+def _parse_date(value):
+    return date.fromisoformat(value)
+
+
+def lambda_handler(event, context):
+    """
+    Input event:
+        policy_id: str, required, must exist in policies.json
+        claim_type: str, required, compared against the policy's
+            coverage_type
+        claim_amount: number, required, > 0
+        claim_date: str "YYYY-MM-DD", required
+        diagnosis_date: str "YYYY-MM-DD", optional. Drives the waiting-
+            period check instead of claim_date when coverage_type is
+            critical_illness (a policy can exclude an illness diagnosed
+            inside the waiting period even if the claim itself is filed
+            later).
+        claim_subtype: str, optional, e.g. "collision". Only consulted for
+            the motor / cover_variant exclusion check.
+        exclusion_code: str, optional, exact code checked against the
+            policy's exclusion_codes list.
+        sub_limit_category: str, optional, key into the policy's
+            sub_limits dict.
+        disability_onset_date: str "YYYY-MM-DD", optional, used together
+            with the policy's deferred_period_days.
+
+    Success return:
+        {"eligible": bool, "approved_amount": number, "reason": str,
+         "error": None}
+
+    Error return (any validation failure):
+        all 9 input fields echoed back, plus
+        {"error": {"<field>": "<description>", ...}}
+        eligible/approved_amount/reason are absent entirely, not
+        present-and-null.
+
+    Denial checks run in order and short-circuit at the first one that
+    fires. Capping (sub-limit, then overall coverage_amount) only happens
+    once every denial-type check has passed clean.
+    """
+    policy_id = event.get("policy_id")
+    claim_type = event.get("claim_type")
+    claim_amount = event.get("claim_amount")
+    claim_date_raw = event.get("claim_date")
+    diagnosis_date_raw = event.get("diagnosis_date")
+    claim_subtype = event.get("claim_subtype")
+    exclusion_code = event.get("exclusion_code")
+    sub_limit_category = event.get("sub_limit_category")
+    disability_onset_date_raw = event.get("disability_onset_date")
+
+    raw_by_field = {
+        "claim_date": claim_date_raw,
+        "diagnosis_date": diagnosis_date_raw,
+        "disability_onset_date": disability_onset_date_raw,
+    }
+
+    def echo():
+        return {
+            "policy_id": policy_id,
+            "claim_type": claim_type,
+            "claim_amount": claim_amount,
+            "claim_date": claim_date_raw,
+            "diagnosis_date": diagnosis_date_raw,
+            "claim_subtype": claim_subtype,
+            "exclusion_code": exclusion_code,
+            "sub_limit_category": sub_limit_category,
+            "disability_onset_date": disability_onset_date_raw,
+        }
+
+    errors = {}
+
+    # independent checks — always run regardless of each other
+    policy = POLICIES_BY_ID.get(policy_id)
+    if policy is None:
+        errors["policy_id"] = "not found"
+
+    if not isinstance(claim_amount, (int, float)) or isinstance(claim_amount, bool) or claim_amount <= 0:
+        errors["claim_amount"] = "must be a positive number"
+
+    parsed_dates = {}
+    for field in DATE_FIELDS:
+        raw = raw_by_field[field]
+        if raw is None:
+            continue
+        try:
+            parsed_dates[field] = _parse_date(raw)
+        except (TypeError, ValueError):
+            errors[field] = "must be YYYY-MM-DD"
+
+    if claim_date_raw is None:
+        errors["claim_date"] = "required"
+
+    # sub_limit_category validity depends on having found the policy —
+    # only checked once policy_id resolved.
+    if policy is not None and sub_limit_category is not None:
+        if sub_limit_category not in policy.get("sub_limits", {}):
+            errors["sub_limit_category"] = "not a valid sub-limit for this policy"
+
+    if errors:
+        return {**echo(), "error": errors}
+
+    # --- past this point: policy exists, claim_amount is valid, all
+    # supplied dates parse, sub_limit_category (if given) is valid ---
+
+    claim_date = parsed_dates["claim_date"]
+    diagnosis_date = parsed_dates.get("diagnosis_date")
+    disability_onset_date = parsed_dates.get("disability_onset_date")
+
+    def deny(reason):
+        return {**echo(), "eligible": False, "approved_amount": 0, "reason": reason, "error": None}
+
+    if policy.get("status") != "active":
+        return deny(f"policy is not active (status: {policy.get('status')})")
+
+    if claim_type != policy.get("coverage_type"):
+        return deny("claim_type does not match policy coverage_type")
+
+    if (
+        policy.get("coverage_type") == "motor"
+        and policy.get("cover_variant") == "third_party_fire_theft"
+        and claim_subtype == "collision"
+    ):
+        return deny("EXCLUSION_MATCHED_COLLISION_NOT_COVERED")
+
+    # waiting period — diagnosis_date drives this for critical_illness
+    # when supplied, per the "diagnosed within the window is excluded even
+    # if the claim is filed later" trap; otherwise claim_date applies.
+    if policy.get("coverage_type") == "critical_illness" and diagnosis_date is not None:
+        effective_date = diagnosis_date
+    else:
+        effective_date = claim_date
+
+    waiting_period_days = policy.get("waiting_period_days", 0)
+    start_date = _parse_date(policy["start_date"])
+    if effective_date < start_date + timedelta(days=waiting_period_days):
+        return deny("WAITING_PERIOD_NOT_MET")
+
+    reason_notes = []
+
+    # deferred period (disability two-stage waiting) — only evaluated if
+    # an onset date was supplied; otherwise skipped and annotated rather
+    # than silently ignored.
+    deferred_period_days = policy.get("deferred_period_days")
+    if deferred_period_days is not None:
+        if disability_onset_date is not None:
+            if claim_date < disability_onset_date + timedelta(days=deferred_period_days):
+                return deny("DEFERRED_PERIOD_NOT_MET")
+        else:
+            reason_notes.append("deferred period not evaluated — no onset date supplied")
+
+    # travel date bounds — only evaluated when the policy has an end_date
+    # on file (annual_multi_trip policies, and some single_trip records in
+    # this dataset, don't carry one).
+    if policy.get("coverage_type") == "travel":
+        end_date_raw = policy.get("end_date")
+        if end_date_raw is not None:
+            end_date = _parse_date(end_date_raw)
+            if not (start_date <= claim_date <= end_date):
+                return deny("TRAVEL_DATE_OUTSIDE_POLICY_WINDOW")
+        else:
+            reason_notes.append("trip end date not on file — date bounds not evaluated")
+
+    if exclusion_code is not None and exclusion_code in policy.get("exclusion_codes", []):
+        return deny(f"EXCLUSION_MATCHED_{exclusion_code}")
+
+    # sub-limit cap
+    if sub_limit_category is not None:
+        sub_limit = policy["sub_limits"][sub_limit_category]
+        if claim_amount > sub_limit:
+            reason = f"SUB_LIMIT_APPLIED_{sub_limit_category.upper()}_{sub_limit}"
+            reason_notes.insert(0, reason)
+            return {
+                **echo(),
+                "eligible": True,
+                "approved_amount": sub_limit,
+                "reason": ", ".join(reason_notes),
+                "error": None,
+            }
+
+    # overall coverage_amount cap
+    coverage_amount = policy["coverage_amount"]
+    if claim_amount > coverage_amount:
+        reason_notes.insert(0, f"CAPPED_AT_COVERAGE_AMOUNT_{coverage_amount}")
+        approved_amount = coverage_amount
+    else:
+        reason_notes.insert(0, "within coverage limit, waiting period satisfied, no exclusion matched")
+        approved_amount = claim_amount
+
+    return {
+        **echo(),
+        "eligible": True,
+        "approved_amount": approved_amount,
+        "reason": ", ".join(reason_notes),
+        "error": None,
+    }

@@ -109,6 +109,117 @@ synthetic docs, logged via the console test panel and a boto3 script.
 
 ---
 
-## Day 3-6
+## Day 3 (Thu) — The two tools + small win demo — ✅ COMPLETE
 
-Not started. See original brief for task breakdown.
+**Sub-limit design decision resolved:** approved-and-capped, not denied
+outright, for both named sub-limits and overall `coverage_amount`
+overruns. Fixed the previously-flagged inconsistency in `claims.json`:
+CLM-005 (POL-0006, home contents) now reads `amount: 500000` (numeric),
+`status: approved`, `reason_codes: ["SUB_LIMIT_APPLIED_CONTENTS_350000"]`
+— consistent with CLM-011 and CLM-014. Referential integrity re-checked
+programmatically (every `policy_id` resolves, every `claim_type` matches
+its policy's `coverage_type`, all amounts numeric) — clean.
+
+**Lambdas — built, restructured into deployment-shaped subdirectories:**
+```
+lambdas/
+  calculate_premium/
+    calculate_premium.py   # fixed from the Day-earlier draft
+    rate_table.json        # bundled copy of data/rate_table.json
+  check_eligibility/
+    check_eligibility.py   # new
+    policies.json          # bundled copy of data/policies.json
+```
+`data/*.json` stay canonical; the `lambdas/*/` copies are the bundled
+deployment artifacts (plain copies, not symlinks — re-copy after editing
+the canonical files in `data/`). `check_eligibility` does not bundle
+`claims.json` — its input is fully structured, nothing in the logic needs
+to look up existing claims.
+
+- `calculate_premium_estimate`: fixed the relative-path bug (`BASE_DIR =
+  os.path.dirname(os.path.abspath(__file__))` instead of a bare
+  `open("rate_table.json")`, which would have broken under Lambda's
+  `/var/task` cwd). Confirmed the age-parsing bug was already handled
+  correctly in the draft (`int("34.7")` raises `ValueError`, so
+  fractional-age strings are rejected, not silently truncated) —
+  documented this as a deliberate choice rather than an accident.
+- `check_claim_eligibility`: new. Input is structured (not a `claim_id`
+  lookup) — `policy_id`, `claim_type`, `claim_amount`, `claim_date`, plus
+  four optional fields added to let a structured caller express claim
+  specifics that don't exist as granular data on `policies.json`:
+  `diagnosis_date` (drives the waiting-period check instead of
+  `claim_date` for critical illness), `claim_subtype` (motor collision
+  exclusion check), `exclusion_code` (exact match against the policy's
+  `exclusion_codes`), `sub_limit_category` (key into `sub_limits`), and
+  `disability_onset_date` (paired with `deferred_period_days`). Returns a
+  dedicated numeric `approved_amount` field separate from `reason` text.
+  **These five fields (plus the four required ones) are the literal tool
+  schema Day 4's Bedrock agent should reuse for this tool** — don't
+  re-derive the shape from scratch.
+
+**Test results** (13 total, both success and error/edge paths per
+function — full input/expected tables in the Day 3 plan file):
+- `calculate_premium_estimate`: 5/5 pass — base life premium, smoker
+  multiplier applied, invalid `coverage_type` rejected with age-check
+  correctly skipped, multi-field error collection (`coverage_type` +
+  `coverage_amount` both flagged, `age` not — since `coverage_type` was
+  already invalid), funeral age-band boundary with one valid + one
+  filtered risk factor.
+- `check_claim_eligibility`: 8/8 pass — straightforward approval,
+  motor `cover_variant` collision exclusion (CLM-008 trap), diagnosis-date
+  vs. claim-date waiting period trap (CLM-012/POL-0018), sub-limit
+  capping (CLM-011 and the fixed CLM-005), unknown `policy_id` error path,
+  `annual_multi_trip` policy correctly skipping the missing-`end_date`
+  check, and a claim correctly denied for falling outside a single-trip
+  policy's date window.
+
+**`cli_demo.py`:** built at repo root. Single flat `argparse` parser (no
+subcommands) — mode inferred from which flags are present, matching the
+brief's two example invocations exactly. Handles both success and error
+return shapes cleanly: checks `result["error"] is not None` first, prints
+one line per failing field, exits non-zero — no raw dict or traceback
+reaches the terminal in either mode. Verified end-to-end for: premium
+success, premium validation error, eligibility success with sub-limit
+capping (prints an extra `Approved amount: ... (capped)` line), and
+eligibility error (`policy_id` not found).
+
+**Judgment calls made beyond what was locked** (confirmed with the user
+before implementing):
+1. Overall `coverage_amount` exceeded (not a named sub-limit): approved
+   and capped at `coverage_amount`, same as the sub-limit rule — the user
+   had only explicitly confirmed sub-limits, not this case.
+2. The four new optional `check_claim_eligibility` input fields
+   (`claim_subtype`, `exclusion_code`, `sub_limit_category`,
+   `disability_onset_date`) — needed because `policies.json`/`claims.json`
+   don't carry this granularity, and free-text exclusion matching is out
+   of scope (that's the Knowledge Base's job, not this Lambda's).
+
+**Known simplifications carried forward as documented limitations** (for
+the Day 5 eval set and Day 6 README):
+- Per-claim-subtype waiting periods (POL-0012/POL-0023, where theft vs.
+  accidental-damage have opposite wait structures) are **not** modeled —
+  the Lambda uses the flat `waiting_period_days` field only.
+- POL-0022 (`single_trip`, no `end_date` on file) has its date-bounds
+  check skipped rather than an invented `end_date` — same treatment as
+  the genuinely-dateless `annual_multi_trip` policies, which is a
+  simplification, not a fully correct distinction.
+- If a policy has `deferred_period_days` but the caller doesn't supply
+  `disability_onset_date`, the deferred-period check is skipped (only the
+  standard `waiting_period_days` check runs) and the skip is noted in the
+  `reason` string rather than silently ignored.
+- Retrieval trap from Day 2 (policy ID + common term causing cross-
+  document bleed) is unaffected by today's work — `check_claim_eligibility`
+  takes `policy_id` as a structured argument, so it's immune to this; the
+  limitation is specific to free-text Knowledge Base queries.
+
+**Nothing deviated from the Day 3 prompt's scope** — no AWS deployment, no
+boto3, no agent loop attempted; both Lambdas are plain local Python
+functions invoked directly by `cli_demo.py`.
+
+---
+
+## Day 4-6
+
+Not started. See original brief for task breakdown. Day 4 should reuse
+`check_claim_eligibility`'s finalized field list (above) as the literal
+Bedrock tool schema rather than re-deriving it.
