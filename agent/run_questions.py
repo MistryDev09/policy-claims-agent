@@ -1,9 +1,10 @@
 """
 Runs six fixed questions through the agent, one fresh conversation each,
 and writes a transcript. This file makes real AWS calls (boto3
-bedrock-runtime / bedrock-agent-runtime) — it is not run by Claude, only
+bedrock-runtime / bedrock-agent-runtime), it is not run by Claude, only
 by the person operating this repo.
 """
+import argparse
 import os
 from datetime import datetime, timezone
 
@@ -32,7 +33,25 @@ QUESTIONS = [
 ]
 
 
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Run the fixed smoke-test questions through the agent.")
+    parser.add_argument(
+        "--only",
+        type=int,
+        metavar="N",
+        help="run only question N (1-indexed, matching the order printed and in QUESTIONS) instead of all six",
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = _parse_args()
+    questions = QUESTIONS
+    if args.only is not None:
+        if not (1 <= args.only <= len(QUESTIONS)):
+            raise SystemExit(f"--only must be between 1 and {len(QUESTIONS)}, got {args.only}")
+        questions = [QUESTIONS[args.only - 1]]
+
     os.makedirs(LOGS_DIR, exist_ok=True)
     client = boto3.client("bedrock-runtime", region_name=REGION)
     kb_client = boto3.client("bedrock-agent-runtime", region_name=REGION)
@@ -41,7 +60,7 @@ def main():
     log_path = os.path.join(LOGS_DIR, f"transcript_{timestamp}.md")
     lines = [f"# Transcript {timestamp}\n\n"]
 
-    for question in QUESTIONS:
+    for question in questions:
         print(f"\nQ: {question}")
         lines.append(f"## Q: {question}\n\n")
 

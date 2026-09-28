@@ -225,6 +225,32 @@ def test_system_prompt_says_to_redo_search_once_claim_type_is_corrected(tool_loo
     assert "corrected coverage type included in the query" in prompt.lower()
 
 
+def test_system_prompt_says_to_retry_search_when_named_policy_missing(tool_loop):
+    # General case, not tied to a claim_type correction: any time the
+    # user names a specific policy and that policy's source file is not
+    # among the results, retry once with coverage type words in the
+    # query, the same fix pattern that resolved Q4, generalized.
+    prompt = tool_loop.build_system_prompt().lower()
+    assert "source file is not among the search results" in prompt
+    assert "retry the search once with the coverage type words in the query" in prompt
+
+
+def test_system_prompt_forbids_substituting_another_policys_terms(tool_loop):
+    # Observed real failure mode: the model said POL-0006's document was
+    # missing, then answered anyway using POL-0015's terms as if they
+    # were close enough. That must be explicitly forbidden, not just
+    # discouraged by omission.
+    prompt = tool_loop.build_system_prompt().lower()
+    assert "that policy's document was not retrieved" in prompt
+    assert "never quote, paraphrase, or compare another policy's terms as a stand-in" in prompt
+
+
+def test_system_prompt_forbids_working_out_dates_or_durations(tool_loop):
+    prompt = tool_loop.build_system_prompt().lower()
+    assert "never work out dates or durations yourself" in prompt
+    assert "report only what the documents or tools state" in prompt
+
+
 # --- TOOL_BACKEND=lambda dispatch switch. A fake lambda client is
 # monkeypatched directly onto tool_loop._lambda_client, bypassing real
 # boto3 entirely, with TOOL_BACKEND monkeypatched to "lambda" so
