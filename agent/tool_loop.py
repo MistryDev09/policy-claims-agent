@@ -70,10 +70,16 @@ def build_system_prompt():
         "check_claim_eligibility and search_policy_documents in the "
         "same turn, phrase the search query from the user's own words "
         "about the product, such as home insurance, never from a "
-        "claim_type you guessed. If any tool returns an error, do not "
-        "state whether the claim is eligible or what the premium is; "
-        "instead read the error fields and ask the user for the "
-        "missing or corrected detail."
+        "claim_type you guessed. If you had to search before you knew "
+        "the policy's real coverage type, and check_claim_eligibility "
+        "later corrects that type, run search_policy_documents again "
+        "with the corrected coverage type included in the query (for "
+        "example, home insurance theft waiting period), since the "
+        "first search without that term may have missed the right "
+        "document. If any tool returns an error, do not state whether "
+        "the claim is eligible or what the premium is; instead read "
+        "the error fields and ask the user for the missing or "
+        "corrected detail."
     )
 
 

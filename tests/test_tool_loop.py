@@ -214,6 +214,17 @@ def test_system_prompt_says_to_phrase_search_query_from_users_words_not_guessed_
     assert "never from a claim_type you guessed" in prompt.lower()
 
 
+def test_system_prompt_says_to_redo_search_once_claim_type_is_corrected(tool_loop):
+    # A neutral first-pass query (no product term, since the model did
+    # not yet know the real coverage type) can still miss the right
+    # document, per the documented retrieval trap. Once
+    # check_claim_eligibility corrects the type, the model should search
+    # again with that term included, not settle for the first miss.
+    prompt = tool_loop.build_system_prompt()
+    assert "run search_policy_documents again" in prompt.lower()
+    assert "corrected coverage type included in the query" in prompt.lower()
+
+
 # --- TOOL_BACKEND=lambda dispatch switch. A fake lambda client is
 # monkeypatched directly onto tool_loop._lambda_client, bypassing real
 # boto3 entirely, with TOOL_BACKEND monkeypatched to "lambda" so

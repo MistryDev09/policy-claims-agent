@@ -682,8 +682,9 @@ Suite: 109 passed, 1 skipped, 0 failed at that point.
 
 ## Lambda deployment
 
-Written and tested (where testable without AWS) this session, actual
-deployment has not happened yet, this is not claiming it is deployed:
+Written and tested (where testable without AWS) in the previous
+session. Now actually deployed, see the follow-up entry below for
+confirmation:
 
 - `infra/package.py`: builds `build/calculate_premium.zip` and
   `build/check_eligibility.zip` from the bundled Lambda directories,
@@ -709,16 +710,83 @@ deployment has not happened yet, this is not claiming it is deployed:
 - `agent/verify_lambdas.py`: compares the local handler against the
   deployed Lambda for 8 fixed inputs (including the new claim_type
   mismatch case), with a fixed `claim_date` so results are
-  deterministic regardless of when it's run. Not executed this
-  session, it makes real AWS calls.
+  deterministic regardless of when it's run.
 
 Suite: 117 passed, 1 skipped, 0 failed.
 
 ---
 
+## Lambdas deployed, parity confirmed, agent run on AWS
+
+`infra/deploy_lambdas.sh` was run (by the user, this script is not run
+by an assistant session). Both functions are live in `eu-west-1`:
+`sanlam-calculate-premium` and `sanlam-check-eligibility`. The deploy
+script prints the resolved account ID to the terminal by design (never
+to a file); nothing from that output was captured into this repo.
+
+`python3 agent/verify_lambdas.py` was run for real against the deployed
+functions: **8/8 cases passed**, byte-for-byte identical results
+between the local handler and the deployed Lambda for every case,
+including the new claim_type mismatch case (POL-0006, "motor").
+
+`TOOL_BACKEND=lambda python3 agent/run_questions.py` was run for real
+(the agent loop calling the deployed Lambdas, not the local handlers,
+for `calculate_premium_estimate`/`check_claim_eligibility`). Transcript:
+`logs/transcript_20260928T111748Z.md`. Both transcripts from this
+session were grepped for `[0-9]{12}` and `(AKIA|ASIA)[A-Z0-9]*` before
+committing; both clean.
+
+**Q4, before and after a small prompt fix, honestly reported:**
+
+The first AWS run this session (`logs/transcript_20260928T110533Z.md`,
+before the fix below) showed the claim_type self-correction from the
+previous session's fix working correctly: `check_claim_eligibility`
+was retried with `claim_type: "home"` after the first call named it as
+the error's actual coverage type, and the eligibility result was
+correct. But `search_policy_documents` used a neutral query ("theft
+waiting period", no product term) and still missed POL-0006 entirely,
+the same class of retrieval failure documented in
+`Trap_data_reference.md`. **Partial**, matching what was expected going
+in.
+
+Root cause once compared against Q1 in the same transcript: Q1's query
+("home insurance waiting period theft claims") included "home
+insurance" and found POL-0006 correctly. The system prompt's existing
+"never guess a product term" rule was overcorrecting: it prevented a
+wrong guess, but also prevented using the *correct* term once it became
+known partway through the turn. Fix (small, prompt-only, about 20
+minutes): added a rule to `build_system_prompt()` telling the model to
+run `search_policy_documents` again with the corrected coverage type
+included in the query, once `check_claim_eligibility` has supplied it.
+
+This is a prompt rule, not a guarantee, so it was tested by rerunning
+Q4 four times after the fix (one full six-question run plus three
+targeted reruns of Q4 alone, all via `TOOL_BACKEND=lambda`, not saved
+as separate transcript files): **4/4 succeeded** completely, correct
+eligibility and correct retrieval, in every attempt sampled. That is
+the honest current result, not a claim that this is now 100% reliable;
+four samples is not proof of that, and the underlying retrieval
+limitation (common terms outweighing a policy ID in the vector store)
+is unchanged. The deterministic fix, a metadata filter on the
+`retrieve()` call that scopes the search to the specific policy's
+document by ID, is recorded in `README.md`'s Future work section
+instead of being implemented here, this session's fix is a mitigation,
+not a replacement for it.
+
+Suite: 118 passed, 1 skipped, 0 failed (one new test added for the
+prompt rule above).
+
+---
+
 ## Day 4-6
 
-Not started beyond the above. See original brief for task breakdown.
-Day 4 should reuse `check_claim_eligibility`'s finalized field list
-(above) as the literal Bedrock tool schema rather than re-deriving it —
-done, see `agent/tools_schema.json`.
+Complete for this project's scope: schema (`agent/tools_schema.json`),
+tool-use loop (`agent/tool_loop.py`), both Lambdas built, packaged, and
+deployed, dispatch backend switch verified 8/8 against the real
+deployment, and the agent run end to end on AWS for all six smoke-test
+questions. Day 4 reused `check_claim_eligibility`'s finalized field
+list as the literal Bedrock tool schema rather than re-deriving it, see
+`agent/tools_schema.json`. Remaining known limitation (KB retrieval on
+common terms) is mitigated by a prompt rule and recorded as future work
+in `README.md`, not fully solved. Days 5-6 (eval set, demo recording,
+final README, submission) are not started.
