@@ -880,3 +880,61 @@ errors, rather than a per-policy schema; see the `get_policy_details`
 future-work note. Day 4's definition of done was met via the AgentCore
 Gateway path. AgentCore Runtime hosting was not attempted; the Gateway
 alone satisfies the Day 4 requirement.
+
+---
+
+## Day 5 eval set
+
+`eval/scenarios.json` is written: 24 scenarios total, 18 agent-level
+(ids 1-18) and 6 lambda-level (ids 19-24). One scenario (id 13, category
+`limitation`) is intentionally `strict: false`, a per-claim-subtype
+waiting-period observation from `Trap_data_reference.md`, never counted
+toward a pass rate. Every policy ID and expected value in the file was
+checked against the real data, not guessed: the 6 lambda-level
+scenarios were run directly against the local handlers this session
+(all 6 match their expected result), and the agent-level scenarios'
+tool-call expectations (self-correction pairs, denial reasons, sub-limit
+caps) were each spot-checked the same way against the underlying policy
+and claims data.
+
+**One correction found while checking scenario 22 (age 34.7 premium):**
+an earlier planning document had quoted 292.50 for a similar case. The
+real, current `data/rate_table.json` gives `base_rate_per_1000: 0.65`
+for the 31-45 age band, so `500000 / 1000 * 0.65 = 325.0`, confirmed
+directly against the deployed rate table and cross-checked against the
+already-verified Q2 result (`487.50 = 325.0 x 1.5` smoker multiplier).
+`eval/scenarios.json` uses 325.0, the value the code actually
+produces, not the older draft figure.
+
+**A design fix made before writing the tests:** `check_answer_contains_any`'s
+`normalize_for_match` strips every character except digits, by design
+(so amounts like "R38,500" and "38500" match). Several early scenario
+drafts used text-only candidates such as "HIV", "not eligible", or
+"denied", which normalize to an empty string and can never match,
+silently forcing those scenarios to fail regardless of the actual
+answer. Fixed by removing the unmatchable text candidates: those
+scenarios (4, 11, 12, 16, 17, 18) now rely on `expected_tool_sequence`
+for their pass/fail grading, plus a documented manual read of the
+saved run's trace and final answer for the wording itself, the same
+pattern already used for scenarios 3, 6, 10, and 13.
+
+`eval/check_helpers.py` (`matches_call`, `check_tool_sequence`,
+`normalize_for_match`, `check_answer_contains_any`) is written and unit
+tested in `tests/test_check_helpers.py` (17 tests, no AWS), covering
+exact and subset matching, status mismatches, in-order and out-of-order
+tool sequences, extra interspersed calls, the strict-empty-sequence
+rule, and currency normalization.
+
+`eval/run_eval.py` is written, not run. It loads `eval/scenarios.json`,
+runs lambda-level scenarios directly against the local handlers
+(reusing `cli_demo._load_handler`) and agent-level scenarios through
+`tool_loop.run_turn`, threading the same `messages` list across a
+`follow_up` turn where present. It prints a per-scenario PASS/FAIL/LOGGED
+line, a summary table by category, a headline pass rate stated
+explicitly as passed over (total minus logged) scenarios, and writes a
+full markdown report to `eval/results/run_<timestamp>.md`.
+
+No eval run has happened yet. No pass rate is claimed.
+
+Suite: 173 passed, 1 skipped, 0 failed (17 new tests, all in
+`tests/test_check_helpers.py`).
