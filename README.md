@@ -94,6 +94,13 @@ tools switch between running as a plain Python function, a real
 - The AgentCore Gateway strips JSON Schema `enum` keys from tool
   schemas, so `agent/gateway_schema.json` lists each field's valid
   values in words in the description instead of as an `enum`.
+- The agent's KB retry behaviour after a missed search is a
+  system-prompt instruction, not a deterministic guarantee. Two manual
+  gateway runs both succeeded, but a query that includes a policy ID
+  (against the tool's own guidance) has been observed even when it
+  happened to land on the right document, so a wrong-document pull
+  under this pattern remains possible and is covered by a dedicated
+  Day 5 eval scenario.
 
 ## Future work
 - At real scale, the agent would call a `get_policy_details(policy_id)`

@@ -835,12 +835,22 @@ call):
 - No-token / garbage-token `tools/list` rejection check
   (`agent/verify_gateway.py`'s `check_no_auth_rejected()`): pending
   confirmation from the user, not yet reported to this session.
-- `TOOL_BACKEND=gateway python3 agent/run_questions.py` six-question
-  run: pending confirmation from the user. A transcript file exists
-  locally from a run the user did outside this session, but its result
-  is not recorded here until the user states it directly, not inferred
-  from the file's presence.
-- Debug logging switch-off: pending confirmation from the user.
+- The gateway-backed six-question run was executed twice. Both runs:
+  6/6 questions correct, including the mismatch self-correction (motor
+  to home) and the sub-limit self-correction (child to
+  child_under_21). On the KB half of the multi-tool question, both
+  gateway runs successfully retrieved POL-0006 and returned the
+  correct 30-day theft waiting period, retrying the search once when
+  the first query did not find it. Note: on the second run, the
+  model's retry query included the policy ID (e.g. "home insurance
+  theft waiting period POL-0006"), which the tool description
+  instructs against, but it still returned the correct document. This
+  differs from the earlier Lambda-backend run, where the model did not
+  retry and returned an incorrect answer from a different policy. Two
+  gateway runs is not enough to call this reliable; flag for a
+  dedicated Day 5 eval scenario.
+- Debug (exception-level) logging on the gateway has been switched
+  off.
 
 New code this session: `agent/gateway_client.py` (token fetch/cache with
 an injectable clock, 60-second-early refresh, one 401-triggered retry,
@@ -867,5 +877,6 @@ AgentCore Gateway was created with two Lambda targets behind JWT
 (Cognito) inbound auth. `sub_limit_category` and `exclusion_code` scale
 to more policies via a flat union enum plus self-correcting validation
 errors, rather than a per-policy schema; see the `get_policy_details`
-future-work note. Day 4's definition of done was met via
-`<PATH PENDING: gateway or fallback, to be confirmed by the user>`.
+future-work note. Day 4's definition of done was met via the AgentCore
+Gateway path. AgentCore Runtime hosting was not attempted; the Gateway
+alone satisfies the Day 4 requirement.
