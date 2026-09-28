@@ -450,6 +450,10 @@ session's findings — order these under a "Known limitations" heading):
   date-bounds check skipped, the same as the genuinely-dateless
   `annual_multi_trip` policies — a simplification, not a fully correct
   distinction between the two `cover_variant`s.
+- `diagnosis_date` is required only for `critical_illness` — that's the
+  one coverage_type in this dataset where a diagnosis date is
+  meaningful, hard-coded as a narrow rule rather than a general "always
+  ask for a diagnosis date" policy.
 
 ---
 
@@ -487,6 +491,92 @@ needed a small change to `test_premium_error`'s input-echo assertion
 (`NaN != NaN`, so it can't use plain `==`).
 
 Suite: 66 passed, 1 skipped, 0 failed.
+
+---
+
+## Decimal currency check + preserve reason notes when excess absorbs payout
+
+Second follow-up to 44bfb06/9c394ff. Most of the requested audit items
+(age floor for `34.7`/`34.99`/`"34.7"`/`30.9`/`75.9`, age rejection for
+`True`/`None`/`"abc"`/`NaN`/`inf`, the floored age appearing in
+`breakdown`, and `check_claim_eligibility`'s excess-wipeout reason
+wording for a simple case) were **already correct in the repo** — a
+characterization-test pass confirmed this (80 of 83 new/changed
+assertions passed against the code as it already stood, with zero
+handler changes needed for those). Two real gaps and one wording issue
+were found and fixed:
+
+1. **`calculate_premium`'s `risk_factors` error message was a Python
+   list repr**, e.g. `"['smoker'] must be true or false"` — not
+   something to relay to a user or expect an agent to parse. Now plain
+   words: `"smoker must be true or false"` (comma-joined for multiple
+   keys).
+2. **`check_claim_eligibility` overwrote `reason_notes` outright** when
+   a policy's `excess` fully absorbed the payout, discarding any
+   `SUB_LIMIT_APPLIED`/`CAPPED_AT_COVERAGE_AMOUNT` note or
+   deferred-period/missing-`end_date` caveat that had already been
+   recorded. No real policy in `policies.json` combines `excess` with a
+   `sub_limits` or `deferred_period_days`/travel-without-`end_date`
+   field, so this was invisible until tested against a synthetic policy
+   (via `monkeypatch.setitem` on `POLICIES_BY_ID`, added as a new
+   `check_eligibility_module` fixture in `conftest.py` for this
+   purpose). Fixed: the excess-wipeout note is now inserted at the front
+   of `reason_notes`, not a replacement for it.
+3. `calculate_premium`'s coverage_amount validation was **refactored**
+   (not behavior-changed) from one large `or`-chained condition to an
+   explicit `if`/`elif` chain, with `math.isfinite` checked before any
+   Decimal/rounding work — the old code happened to reject NaN/inf
+   correctly already, but only as an accident of Python's
+   NaN-comparisons-are-`False` semantics, not by an explicit check. The
+   2-decimal-place check itself moved from `round(x, 2) == x` to
+   `Decimal(str(x)).as_tuple().exponent >= -2`, per this session's
+   request — see the mutation result below on why this is a
+   *more principled* check, not a behavior fix.
+
+**Mutation checks** (run, result shown, reverted via edit):
+- Removed the `math.isfinite` check on `age`: **caught, and worse than a
+  test failure** — `math.floor(float("nan"))` raises `ValueError` and
+  `math.floor(float("inf"))` raises `OverflowError`, so the handler
+  crashed outright on the existing NaN/inf age test cases rather than
+  returning a clean error. Confirms the explicit check isn't redundant.
+- Replaced the `Decimal` exponent check with `round(x, 2) == x`: **this
+  mutation survives — reporting honestly, not inventing a failure.**
+  All 50 `test_calculate_premium.py` tests still pass, including
+  `1000.10`/`0.29`/`1234567.89` (accepted) and `1000.505` (rejected). A
+  brute-force check across 200,000 random 1-3-decimal floats found zero
+  divergence between the two methods. The Decimal approach is more
+  robust in principle (it inspects the decimal representation directly
+  instead of relying on binary-float round-trip equality), but no test
+  in this suite — and no value found by random search — currently
+  distinguishes them, so no test was added to force a difference that
+  doesn't exist for realistic currency inputs.
+- Restored the `reason_notes = [...]` overwrite in
+  `check_eligibility.py`: **caught** —
+  `test_excess_wipeout_preserves_sub_limit_note` and
+  `test_excess_wipeout_preserves_deferred_period_caveat` both failed
+  (the sub-limit/deferred-period notes were missing from `reason`),
+  confirming the fix is load-bearing.
+
+**New tests:** `test_age_75_9_floors_to_75_still_valid`,
+`test_coverage_amount_valid_currency_values_accepted` (parametrized: 5
+cases), `test_coverage_amount_invalid_currency_values_rejected`
+(parametrized: 8 cases), `test_risk_factors_message_names_keys_in_plain_
+words`, `test_excess_wipeout_preserves_sub_limit_note`,
+`test_excess_wipeout_preserves_deferred_period_caveat`. Added a
+`check_eligibility_module` fixture to `conftest.py` (returns the module,
+not just `lambda_handler`) so the last two tests can monkeypatch a
+synthetic policy into `POLICIES_BY_ID`.
+
+**No existing test needed a changed expectation** — none of this
+session's fixes altered any externally observable behavior that an
+existing test pinned (verified by running the full suite before writing
+any fix). The instruction to rename `test_age_as_float_is_rejected_not_
+truncated` and flip its assertion was already done in the prior
+session (it's `test_age_is_floored_to_last_birthday` now).
+
+Suite: **83 passed, 1 skipped, 0 failed** (verified by running
+`python3 -m pytest -v` just before writing this entry — not copied from
+an earlier commit message).
 
 ---
 

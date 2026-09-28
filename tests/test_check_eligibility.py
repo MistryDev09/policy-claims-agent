@@ -344,6 +344,80 @@ def test_unknown_exclusion_code_errors_and_lists_valid_values(check_eligibility)
         assert valid_code in message
 
 
+# --- Follow-up to 44bfb06: preserve reason notes when excess wipes the
+# payout. No real policy in policies.json combines excess with a
+# sub_limit, or with deferred_period_days/a missing travel end_date, so
+# these two cases are built against a synthetic policy inserted into
+# POLICIES_BY_ID via monkeypatch (auto-reverted after each test). Both
+# FAIL against the code as it stands: reason_notes is currently
+# overwritten outright when excess wipes the payout, discarding whatever
+# was already in it.
+
+
+def test_excess_wipeout_preserves_sub_limit_note(check_eligibility_module, monkeypatch):
+    fake_policy = {
+        "policy_id": "POL-TEST-SUBLIMIT-EXCESS",
+        "coverage_type": "home",
+        "coverage_amount": 1_000_000,
+        "sub_limits": {"contents": 400},
+        "excess": 500,
+        "start_date": "2020-01-01",
+        "waiting_period_days": 0,
+        "status": "active",
+        "exclusion_codes": [],
+    }
+    monkeypatch.setitem(check_eligibility_module.POLICIES_BY_ID, fake_policy["policy_id"], fake_policy)
+
+    result = check_eligibility_module.lambda_handler(
+        {
+            "policy_id": fake_policy["policy_id"],
+            "claim_type": "home",
+            "claim_amount": 2000,
+            "claim_date": "2024-01-01",
+            "sub_limit_category": "contents",
+        },
+        None,
+    )
+    assert result["error"] is None
+    assert result["eligible"] is True
+    assert result["approved_amount"] == 0  # sub-limit caps to 400, excess (500) then wipes it
+    assert "SUB_LIMIT_APPLIED_CONTENTS_400" in result["reason"]
+    assert "does not exceed the R500 excess" in result["reason"]
+
+
+def test_excess_wipeout_preserves_deferred_period_caveat(check_eligibility_module, monkeypatch):
+    fake_policy = {
+        "policy_id": "POL-TEST-DEFERRED-EXCESS",
+        "coverage_type": "disability",
+        "coverage_amount": 100_000,
+        "deferred_period_days": 7,
+        "excess": 5000,
+        "start_date": "2020-01-01",
+        "waiting_period_days": 0,
+        "status": "active",
+        "exclusion_codes": [],
+    }
+    monkeypatch.setitem(check_eligibility_module.POLICIES_BY_ID, fake_policy["policy_id"], fake_policy)
+
+    # No disability_onset_date supplied, so the deferred-period check is
+    # skipped and annotated; claim_amount (3000) is below the excess
+    # (5000), so it should wipe the payout while keeping that annotation.
+    result = check_eligibility_module.lambda_handler(
+        {
+            "policy_id": fake_policy["policy_id"],
+            "claim_type": "disability",
+            "claim_amount": 3000,
+            "claim_date": "2024-01-01",
+        },
+        None,
+    )
+    assert result["error"] is None
+    assert result["eligible"] is True
+    assert result["approved_amount"] == 0
+    assert "deferred period not evaluated" in result["reason"]
+    assert "does not exceed the R5000 excess" in result["reason"]
+
+
 def test_error_echoes_inputs_and_keys_error_by_field(check_eligibility):
     event = {
         "policy_id": "POL-0001",

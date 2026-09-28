@@ -30,7 +30,11 @@ def lambda_handler(event, context):
             claim_date (a policy can exclude an illness diagnosed inside
             the waiting period even if the claim itself is filed later).
             Missing it on a critical_illness claim is a validation error,
-            not a silent fall-back to claim_date.
+            not a silent fall-back to claim_date. critical_illness is
+            hard-coded as the one coverage_type where diagnosis_date
+            matters — this is a deliberate, narrow rule (this dataset has
+            no other coverage_type where a diagnosis date is meaningful),
+            not a general "always ask for a diagnosis date" policy.
         claim_subtype: str, e.g. "collision". REQUIRED when the resolved
             policy's coverage_type is motor and cover_variant is
             third_party_fire_theft (otherwise optional/unused) — without
@@ -58,7 +62,8 @@ def lambda_handler(event, context):
         can self-correct. A missing diagnosis_date/claim_subtype where
         the policy requires one (see above) is also a validation error,
         with message text aimed at telling the caller what to go ask the
-        user for.
+        user for — every error message in this handler is written to be
+        relayed by an agent to a human, not just logged for a developer.
 
     Denial checks run in order and short-circuit at the first one that
     fires. Capping (sub-limit, else overall coverage_amount) only happens
@@ -66,7 +71,10 @@ def lambda_handler(event, context):
     an `excess` (POL-0005, POL-0012 in this dataset), it's deducted from
     the approved amount last, floored at 0 — if the excess alone wipes out
     the payout, `reason` says so explicitly instead of implying a normal
-    within-limit approval.
+    within-limit approval. That message is inserted at the front of
+    `reason`'s notes, not a replacement for them — any earlier note
+    (a SUB_LIMIT_APPLIED/CAPPED_AT_COVERAGE_AMOUNT cap, a deferred-period
+    or missing-travel-end_date caveat) survives alongside it.
     """
     policy_id = event.get("policy_id")
     claim_type = event.get("claim_type")
@@ -264,8 +272,16 @@ def lambda_handler(event, context):
     if excess:
         pre_excess_amount = approved_amount
         approved_amount = max(0, pre_excess_amount - excess)
-        if approved_amount == 0 and pre_excess_amount <= excess:
-            reason_notes = [f"claim amount does not exceed the R{excess} excess — nothing payable"]
+        # approved_amount == 0 is implied by pre_excess_amount <= excess
+        # (max(0, non-positive) == 0), so checking the latter alone is
+        # equivalent and doesn't repeat the same fact twice.
+        if pre_excess_amount <= excess:
+            # Insert, don't overwrite: whatever's already in reason_notes
+            # (a SUB_LIMIT_APPLIED/CAPPED_AT_COVERAGE_AMOUNT note, a
+            # deferred-period or missing-end_date caveat) is still true
+            # and still relevant — the excess wiping out the payout is an
+            # additional fact, not a replacement for the others.
+            reason_notes.insert(0, f"claim amount does not exceed the R{excess} excess — nothing payable")
         else:
             reason_notes.append(f"less R{excess} excess")
 
