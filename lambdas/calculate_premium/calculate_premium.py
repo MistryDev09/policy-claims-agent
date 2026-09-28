@@ -1,4 +1,5 @@
 import json
+import math
 import os
 
 # Loaded once, outside the handler, at module import time — not inside
@@ -20,10 +21,13 @@ VALID_COVERAGE_TYPES = ["life", "critical_illness", "disability", "funeral"]
 def lambda_handler(event, context):
     """
     Input event:
-        age: number, cast to int. Rejected (not silently truncated) if
-            it isn't a whole number: "34.7" and the float 34.7 are both
-            invalid, and so is a bool (bools are technically ints in
-            Python but aren't ages).
+        age: number or numeric string, floored to a whole number — "age
+            last birthday", the standard insurance convention: 34.7 and
+            "34.7" both become 34, 30.9 becomes 30. Rejected outright
+            (not just floored to 0 or silently coerced) for a bool, None,
+            a non-numeric string, NaN, or +/-inf — none of those have a
+            meaningful "age last birthday". The floored value is what
+            gets band-checked and is echoed in the breakdown string.
         coverage_amount: number, > 0 and <= 10,000,000, at most 2 decimal
             places (it's a currency amount), not a bool.
         coverage_type: one of VALID_COVERAGE_TYPES
@@ -81,24 +85,28 @@ def lambda_handler(event, context):
     matched_band = None
     if "coverage_type" not in errors:
         if isinstance(age_raw, bool):
-            # bool is an int subclass; True/False are not ages.
-            errors["age"] = "must be a whole number"
-        elif isinstance(age_raw, float):
-            # A fractional float (34.7) is rejected the same way a
-            # fractional string ("34.7") already was — silently truncating
-            # via int(age_raw) would hide a data-quality problem from the
-            # caller. An integer-valued float (34.0) is accepted.
-            if age_raw.is_integer():
-                age = int(age_raw)
+            # bool is an int subclass; True/False have no "age last
+            # birthday".
+            errors["age"] = "must be a number (age last birthday)"
+        elif isinstance(age_raw, (int, float)):
+            if isinstance(age_raw, float) and (math.isnan(age_raw) or math.isinf(age_raw)):
+                errors["age"] = "must be a number (age last birthday)"
             else:
-                errors["age"] = "must be a whole number"
-        else:
+                # "Age last birthday": floor, don't round or reject —
+                # 34.7 and 34.99 are both still 34.
+                age = math.floor(age_raw)
+        elif isinstance(age_raw, str):
             try:
-                # int("34.7") raises ValueError — fractional-age strings
-                # are rejected the same way.
-                age = int(age_raw)
-            except (TypeError, ValueError):
-                errors["age"] = "must be a whole number"
+                parsed = float(age_raw)
+            except ValueError:
+                errors["age"] = "must be a number (age last birthday)"
+            else:
+                if math.isnan(parsed) or math.isinf(parsed):
+                    errors["age"] = "must be a number (age last birthday)"
+                else:
+                    age = math.floor(parsed)
+        else:
+            errors["age"] = "must be a number (age last birthday)"
 
         if "age" not in errors:
             bands = RATE_TABLE[coverage_type]["age_bands"]
@@ -155,7 +163,7 @@ def lambda_handler(event, context):
 
     premium_estimate = round(base_premium * combined_multiplier, 2)
 
-    breakdown_parts = [f"base rate R{base_premium:.2f}"]
+    breakdown_parts = [f"age {age} (last birthday)", f"base rate R{base_premium:.2f}"]
     for name, mult in applied.items():
         breakdown_parts.append(f"x {name} multiplier {mult}")
     breakdown = " ".join(breakdown_parts)

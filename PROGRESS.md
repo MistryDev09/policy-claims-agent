@@ -141,11 +141,15 @@ to look up existing claims.
   `open("rate_table.json")`, which would have broken under Lambda's
   `/var/task` cwd). At the time, the age-parsing bug looked already
   handled correctly in the draft (`int("34.7")` raises `ValueError`, so
-  fractional-age *strings* are rejected) — **correction, see the Day 4
-  pre-work entry below:** this was only true for strings. A real float
-  `34.7` (as opposed to the string `"34.7"`) was silently truncated to
-  34 via `int(34.7)` until the Day 4 pre-work fix; that gap is now closed
-  for both forms.
+  fractional-age *strings* were rejected) — **correction (twice now, see
+  both entries below):** first it turned out this was only true for
+  strings (a real float `34.7` was silently truncated to 34 via
+  `int(34.7)`), then the "reject fractional ages" rule itself was
+  replaced entirely — see the "Floor fractional age" entry at the end of
+  this file. Fractional ages (float or numeric string) are now floored
+  to "age last birthday" by design, not rejected, and the floored value
+  is echoed back in the `breakdown` string (e.g. `"age 34 (last
+  birthday) base rate R325.00"`).
 - `check_claim_eligibility`: new. Input is structured (not a `claim_id`
   lookup) — `policy_id`, `claim_type`, `claim_amount`, `claim_date`, plus
   four optional fields added to let a structured caller express claim
@@ -351,8 +355,9 @@ failed** (up from 48+1 — 11 new tests, 5 changed).
 **Fixes:**
 1. `calculate_premium`: a real float age (`34.7`, as opposed to the
    already-rejected string `"34.7"`) was silently truncated to 34 via
-   `int(34.7)`. Now rejected the same as the string form; an
-   integer-valued float (`34.0`) is still accepted.
+   `int(34.7)`. Rejected the same as the string form at the time this
+   entry was written — **superseded a session later, see "Floor
+   fractional age" below: this rule was replaced, not kept.**
 2. `calculate_premium`: `coverage_amount=True` passed validation (bool is
    an `int` subclass in Python, so `isinstance(True, (int, float))` is
    `True` and `True == 1`). Now explicitly rejected.
@@ -445,6 +450,43 @@ session's findings — order these under a "Known limitations" heading):
   date-bounds check skipped, the same as the genuinely-dateless
   `annual_multi_trip` policies — a simplification, not a fully correct
   distinction between the two `cover_variant`s.
+
+---
+
+## Floor fractional age (age last birthday)
+
+Follow-up to the Day 4 pre-work commit: the "reject any fractional age"
+rule from that commit was itself replaced. `calculate_premium`'s `age`
+input is now **floored**, not rejected, for a fractional number or
+numeric string — "age last birthday," the standard insurance convention:
+`34.7`, `34.99`, and `"34.7"` all mean someone who is 34 last birthday
+and are treated identically to `age: 34`. `30.9` floors to 30 (still
+band 18-30); `17.9` floors to 17 (still below the lowest band, still an
+error) — the floored value, not the raw input, is what gets band-checked.
+A `bool`, `None`, a non-numeric string, `NaN`, or `+/-inf` are still
+rejected outright (none of those have a meaningful "age last birthday").
+The floored age is now echoed in the `breakdown` string, e.g. `"age 34
+(last birthday) base rate R325.00"`.
+
+**Why floor instead of the earlier "reject fractional ages" rule:**
+flooring is the actual insurance-industry convention for "age last
+birthday" — rejecting a fractional age was the more conservative choice
+made two sessions ago before this convention was specified; this
+supersedes it, it isn't a bug fix on top of it.
+
+Tests: renamed `test_age_as_float_is_rejected_not_truncated` to
+`test_age_is_floored_to_last_birthday` and flipped its assertion (now
+asserts success + the floored premium + the breakdown text, not an
+error). Removed `test_age_fractional_string_is_currently_rejected`
+outright — its own assertion (`"34.7"` → error) was the exact behavior
+this change replaces, and its case is now covered by the renamed test.
+Added new cases to the shared `SUCCESS_CASES`/`ERROR_CASES` tables:
+`34.7`, `34.99`, `"34.7"`, `30.9` (success, floors into band 18-30) and
+`17.9`, `True`, `float("nan")`, `float("inf")` (error). The `NaN` case
+needed a small change to `test_premium_error`'s input-echo assertion
+(`NaN != NaN`, so it can't use plain `==`).
+
+Suite: 66 passed, 1 skipped, 0 failed.
 
 ---
 

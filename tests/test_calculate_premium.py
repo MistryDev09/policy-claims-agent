@@ -15,6 +15,11 @@ SUCCESS_CASES = [
     ("life", 75, 500000, {}, 1100.0),  # upper age-band boundary
     ("life", 34, 10_000_000, {}, 6500.0),  # coverage_amount upper boundary
     ("life", "34", 500000, {}, 325.0),  # numeric string age, must equal int 34 result
+    # "age last birthday": fractional ages are floored, not rejected.
+    ("life", 34.7, 500000, {}, 325.0),
+    ("life", 34.99, 500000, {}, 325.0),
+    ("life", "34.7", 500000, {}, 325.0),
+    ("life", 30.9, 500000, {}, 225.0),  # floors to 30 -> still band 18-30 (rate 0.45)
 ]
 
 
@@ -49,6 +54,10 @@ ERROR_CASES = [
     ("life", 34, -100, {}, {"coverage_amount"}),
     ("life", "abc", 500000, {}, {"age"}),  # non-numeric string, no crash
     ("life", None, 500000, {}, {"age"}),  # missing age, no crash
+    ("life", 17.9, 500000, {}, {"age"}),  # floors to 17 -> below lowest band (18)
+    ("life", True, 500000, {}, {"age"}),  # bool has no "age last birthday"
+    ("life", float("nan"), 500000, {}, {"age"}),
+    ("life", float("inf"), 500000, {}, {"age"}),
     # Was a SUCCESS case ("truthy-but-not-True silently filtered") before
     # the Day 4 pre-work validation rules landed: a recognized risk_factor
     # key with a non-bool value is now bad input, not a silent no-op.
@@ -74,8 +83,12 @@ def test_premium_error(
     assert "premium_estimate" not in result
     assert "breakdown" not in result
 
-    # error results must echo the inputs back
-    assert result["age"] == age
+    # error results must echo the inputs back. NaN != NaN, so that one
+    # case needs its own comparison rather than ==.
+    if isinstance(age, float) and age != age:
+        assert isinstance(result["age"], float) and result["age"] != result["age"]
+    else:
+        assert result["age"] == age
     assert result["coverage_amount"] == coverage_amount
     assert result["coverage_type"] == coverage_type
     assert result["risk_factors"] == risk_factors
@@ -88,17 +101,22 @@ def test_premium_error(
 # here.
 
 
-def test_age_as_float_is_rejected_not_truncated(calculate_premium):
-    # int(34.7) truncates to 34 today — a fractional age silently passes
-    # as if it were 34, even though the string form "34.7" is already
-    # correctly rejected. Both forms of "not a whole number" should be
-    # treated the same way.
-    result = calculate_premium(
-        {"age": 34.7, "coverage_amount": 500000, "coverage_type": "life", "risk_factors": {}},
+def test_age_is_floored_to_last_birthday(calculate_premium):
+    # "Age last birthday" is the standard insurance convention: a
+    # fractional age is floored, not rejected and not rounded. 34.7 and
+    # 34.99 both mean "34 last birthday" — same premium as age 34.
+    baseline = calculate_premium(
+        {"age": 34, "coverage_amount": 500000, "coverage_type": "life", "risk_factors": {}},
         None,
     )
-    assert "age" in result["error"]
-    assert "premium_estimate" not in result
+    for fractional_age in (34.7, 34.99, "34.7"):
+        result = calculate_premium(
+            {"age": fractional_age, "coverage_amount": 500000, "coverage_type": "life", "risk_factors": {}},
+            None,
+        )
+        assert result["error"] is None
+        assert result["premium_estimate"] == baseline["premium_estimate"]
+        assert "age 34 (last birthday)" in result["breakdown"]
 
 
 def test_coverage_amount_bool_is_rejected(calculate_premium):
@@ -160,19 +178,4 @@ def test_risk_factors_as_string_errors_not_crash(calculate_premium):
         None,
     )
     assert "risk_factors" in result["error"]
-    assert "premium_estimate" not in result
-
-
-def test_age_fractional_string_is_currently_rejected(calculate_premium):
-    # Pinning CURRENT behavior, not asserting a preference: int("34.7")
-    # raises ValueError, so the handler treats a fractional-age string as
-    # invalid input rather than truncating it via int(float(age_raw)). If
-    # this behavior is deliberately changed later, this test should be
-    # updated to match — it exists to make that change visible, not to
-    # block it.
-    result = calculate_premium(
-        {"age": "34.7", "coverage_amount": 500000, "coverage_type": "life", "risk_factors": {}},
-        None,
-    )
-    assert result["error"] == {"age": "must be a whole number"}
     assert "premium_estimate" not in result
