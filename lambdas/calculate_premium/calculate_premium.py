@@ -1,6 +1,7 @@
 import json
 import math
 import os
+from decimal import Decimal
 
 # Loaded once, outside the handler, at module import time — not inside
 # lambda_handler. Lambda reuses the same execution environment across
@@ -28,15 +29,24 @@ def lambda_handler(event, context):
             a non-numeric string, NaN, or +/-inf — none of those have a
             meaningful "age last birthday". The floored value is what
             gets band-checked and is echoed in the breakdown string.
-        coverage_amount: number, > 0 and <= 10,000,000, at most 2 decimal
-            places (it's a currency amount), not a bool.
+        coverage_amount: number, > 0 and <= 10,000,000, finite (NaN and
+            +/-inf rejected), at most 2 decimal places (it's a currency
+            amount — checked via Decimal(str(x)), not round(x, 2) == x,
+            since that's the more robust way to detect "more than 2
+            decimal places present" for a float), not a bool.
         coverage_type: one of VALID_COVERAGE_TYPES
         risk_factors: dict[str, bool], optional, defaults to {}. Must be
             a dict, else rejected on "risk_factors" (not a crash). Keys
             that aren't valid multipliers for the given coverage_type are
             silently filtered out — but a key that IS valid for this
             coverage_type must have a real bool value (not "yes", 1, etc)
-            or the whole risk_factors input is rejected.
+            or the whole risk_factors input is rejected, naming the bad
+            key(s) in plain words (e.g. "smoker must be true or false").
+            Note: this check only runs when coverage_type is itself
+            valid — if coverage_type is invalid there's no rate table to
+            check keys against, so a non-bool value on a would-be-valid
+            key isn't reported in that case (the coverage_type error
+            takes priority).
 
     Success return:
         {"premium_estimate": number, "breakdown": str, "error": None}
@@ -64,20 +74,28 @@ def lambda_handler(event, context):
     if coverage_type not in VALID_COVERAGE_TYPES:
         errors["coverage_type"] = f"must be one of {VALID_COVERAGE_TYPES}"
 
-    # independent of coverage_type, can always be checked. bool is
-    # rejected explicitly: it's a subclass of int in Python, so
-    # isinstance(True, (int, float)) is True and True == 1, which would
-    # otherwise silently pass as a coverage_amount of 1. round(x, 2) == x
-    # rejects more than 2 decimal places (this is a currency amount).
-    if (
-        isinstance(coverage_amount, bool)
-        or not isinstance(coverage_amount, (int, float))
-        or not (0 < coverage_amount <= 10_000_000)
-        or round(coverage_amount, 2) != coverage_amount
-    ):
-        errors["coverage_amount"] = (
-            "must be a positive number, max 10,000,000, with at most 2 decimal places"
-        )
+    # independent of coverage_type, can always be checked. Checked as an
+    # explicit chain (not one big `or`) so the isfinite check always runs
+    # before any rounding/Decimal work, rather than relying on the
+    # accident that NaN/inf already fail the 0 < x <= 10_000_000
+    # comparison via Python's NaN-comparisons-are-False semantics.
+    coverage_amount_error = "must be a positive number, max 10,000,000, with at most 2 decimal places"
+    if isinstance(coverage_amount, bool) or not isinstance(coverage_amount, (int, float)):
+        # bool is a subclass of int in Python, so isinstance(True, (int,
+        # float)) would otherwise be True and True == 1 would silently
+        # pass as a coverage_amount of 1.
+        errors["coverage_amount"] = coverage_amount_error
+    elif not math.isfinite(coverage_amount):
+        errors["coverage_amount"] = coverage_amount_error
+    elif not (0 < coverage_amount <= 10_000_000):
+        errors["coverage_amount"] = coverage_amount_error
+    elif Decimal(str(coverage_amount)).as_tuple().exponent < -2:
+        # Decimal(str(x)) instead of round(x, 2) == x: checks the decimal
+        # places actually present in the value rather than relying on
+        # binary-float round-trip equality, which is the more robust way
+        # to answer "does this currency amount have more than 2 decimal
+        # places" for a float.
+        errors["coverage_amount"] = coverage_amount_error
 
     # age band check only runs if coverage_type was valid — this is the
     # "skip if coverage_type invalid" rule you decided on
@@ -89,7 +107,10 @@ def lambda_handler(event, context):
             # birthday".
             errors["age"] = "must be a number (age last birthday)"
         elif isinstance(age_raw, (int, float)):
-            if isinstance(age_raw, float) and (math.isnan(age_raw) or math.isinf(age_raw)):
+            # math.isfinite is False for both NaN and +/-inf, in one call
+            # — an int is always finite, so this only ever rejects a bad
+            # float.
+            if not math.isfinite(age_raw):
                 errors["age"] = "must be a number (age last birthday)"
             else:
                 # "Age last birthday": floor, don't round or reject —
@@ -101,7 +122,7 @@ def lambda_handler(event, context):
             except ValueError:
                 errors["age"] = "must be a number (age last birthday)"
             else:
-                if math.isnan(parsed) or math.isinf(parsed):
+                if not math.isfinite(parsed):
                     errors["age"] = "must be a number (age last birthday)"
                 else:
                     age = math.floor(parsed)
@@ -127,13 +148,19 @@ def lambda_handler(event, context):
         # a real bool value (not "yes", 1, etc) — unknown keys are still
         # silently filtered, per the existing rule, but a recognized key
         # with a non-bool value is treated as bad input, not filtered.
+        # Gated on "coverage_type not in errors" — if coverage_type itself
+        # is invalid, there's no rate table to check keys against, so a
+        # non-bool value on a would-be-valid key isn't reported here (the
+        # coverage_type error takes priority; risk_factors is left alone).
         valid_multipliers = RATE_TABLE[coverage_type]["risk_multipliers"]
         bad_keys = [
             name for name in valid_multipliers
             if name in risk_factors and not isinstance(risk_factors[name], bool)
         ]
         if bad_keys:
-            errors["risk_factors"] = f"{bad_keys} must be true or false"
+            # Plain words, not a Python list repr: "smoker must be true or
+            # false", not "['smoker'] must be true or false".
+            errors["risk_factors"] = f"{', '.join(bad_keys)} must be true or false"
 
     if errors:
         return {

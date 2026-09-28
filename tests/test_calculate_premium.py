@@ -179,3 +179,59 @@ def test_risk_factors_as_string_errors_not_crash(calculate_premium):
     )
     assert "risk_factors" in result["error"]
     assert "premium_estimate" not in result
+
+
+# --- Follow-up to 44bfb06: message wording + characterization tests ---
+# (see PROGRESS.md). The float("nan")/float("inf")/age-75.9/coverage_amount
+# accept-and-reject lists below were already correct on the code as it
+# stood before this change (verified by hand) — they're added here as
+# characterization tests to protect that behavior across the Decimal-based
+# currency-check refactor in this same change, not because they were
+# failing. Only test_risk_factors_message_names_keys_in_plain_words is a
+# genuine FAILING test against the code as it stands (current message is
+# a Python list repr, e.g. "['smoker'] must be true or false").
+
+
+def test_age_75_9_floors_to_75_still_valid(calculate_premium):
+    # Upper age-band boundary (75) reached via flooring a fractional age,
+    # not just an already-whole-number 75.
+    result = calculate_premium(
+        {"age": 75.9, "coverage_amount": 500000, "coverage_type": "life", "risk_factors": {}},
+        None,
+    )
+    assert result["error"] is None
+    assert result["premium_estimate"] == pytest.approx(1100.0)
+    assert "age 75 (last birthday)" in result["breakdown"]
+
+
+@pytest.mark.parametrize("coverage_amount", [1000.10, 0.29, 1234567.89, 1000.50, 500000])
+def test_coverage_amount_valid_currency_values_accepted(calculate_premium, coverage_amount):
+    result = calculate_premium(
+        {"age": 34, "coverage_amount": coverage_amount, "coverage_type": "life", "risk_factors": {}},
+        None,
+    )
+    assert result["error"] is None
+
+
+@pytest.mark.parametrize(
+    "coverage_amount",
+    [1000.505, True, float("nan"), float("inf"), 0, -5, 10_000_000.01, 10_000_001],
+)
+def test_coverage_amount_invalid_currency_values_rejected(calculate_premium, coverage_amount):
+    result = calculate_premium(
+        {"age": 34, "coverage_amount": coverage_amount, "coverage_type": "life", "risk_factors": {}},
+        None,
+    )
+    assert "coverage_amount" in result["error"]
+    assert "premium_estimate" not in result
+
+
+def test_risk_factors_message_names_keys_in_plain_words(calculate_premium):
+    # Today: f"{bad_keys} must be true or false" renders as
+    # "['smoker'] must be true or false" — a Python list repr, not
+    # something you'd relay to a user or expect an agent to parse cleanly.
+    result = calculate_premium(
+        {"age": 34, "coverage_amount": 500000, "coverage_type": "life", "risk_factors": {"smoker": "yes"}},
+        None,
+    )
+    assert result["error"]["risk_factors"] == "smoker must be true or false"
