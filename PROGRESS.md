@@ -613,13 +613,36 @@ AWS calls were made while writing this code):
   more chances to see the right document even when a bad query ranks it
   outside the top few.
 
-**Local six-question run: pending.** `agent/run_questions.py` is
-written and syntax-checked (`python3 -m py_compile`) but has not been
-run — it makes real `bedrock-runtime`/`bedrock-agent-runtime` calls, so
-it's run by hand, not by an assistant session. No results to report yet;
-do not treat anything above as a verified outcome until that run happens
-and each answer is checked by hand against the expected value noted in
-`agent/run_questions.py`'s `QUESTIONS` comments.
+**Local six-question run: done.** `logs/transcript_20260928T103603Z.md`
+— 5/6 clean, 1 partial:
+- Q1 (KB, POL-0006 theft waiting period): correct, 30 days, sourced from
+  POL-0006.
+- Q2 (life premium): correct, R487.50 (R325 base x 1.5 smoker).
+- Q3 (POL-0005 collision): correct, `approved_amount` 38,500, reply
+  names the R6,500 excess explicitly.
+- Q4 (POL-0006 theft eligibility + KB): **partial**. Both tools were
+  called in the same turn as required. But the model guessed
+  `claim_type: "motor"` for "theft claim on POL-0006" — each question
+  runs as a fresh conversation with no memory that Q1 had already
+  established POL-0006 is a *home* policy, so this is a reasoning gap in
+  a stateless single-turn context, not a code bug. That triggered the
+  claim-type-mismatch rule correctly (asked which policy was meant
+  instead of reporting a denial), but it also phrased the KB query
+  around "motor policy," so retrieval missed POL-0006 and returned an
+  unrelated motor/device-policy table instead of the 30-day answer.
+- Q5 (POL-0020 child funeral sub-limit): correct — the trace shows a
+  genuine self-correct: first call used `sub_limit_category: "child"` →
+  `status: error` (that's POL-0008's key, not POL-0020's), retried with
+  `child_under_21` → success, `approved_amount` 20,000.
+- Q6 (pet insurance premium): correct — no tool called at all, clean
+  refusal naming the 4 supported coverage types.
+
+Not a blocker for Day 4's definition of done (agent routes multiple
+question types correctly, uses ≥2 tools including a multi-tool turn),
+but Q4 is worth revisiting for the Day 5 eval set: either make the
+"which policy is this" clarifying question a required round-trip before
+the KB query fires, or have the agent re-derive the coverage type from
+the `check_claim_eligibility` error before phrasing the search.
 
 **Housekeeping:** `logs/` is now tracked in git (transcripts are demo
 evidence and contain no secrets); `logs/*.tmp` is gitignored.
