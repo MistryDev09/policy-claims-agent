@@ -790,3 +790,64 @@ list as the literal Bedrock tool schema rather than re-deriving it, see
 common terms) is mitigated by a prompt rule and recorded as future work
 in `README.md`, not fully solved. Days 5-6 (eval set, demo recording,
 final README, submission) are not started.
+
+---
+
+## AgentCore Gateway (Tier 1)
+
+Facts only, from the manual setup and testing done this session (by the
+user, in the console; nothing here was verified by an assistant AWS
+call):
+
+- The gateway was created with JWT inbound auth via Cognito "quick
+  create," fronting two Lambda targets (`calculate-premium`,
+  `check-eligibility`).
+- Each target's tools are exposed with the target's own name plus three
+  underscores plus the tool name, e.g.
+  `calculate-premium___calculate_premium_estimate`,
+  `check-eligibility___check_claim_eligibility`. The model-facing tool
+  names in `agent/tools_schema.json` are unaffected; the prefix mapping
+  lives only in `agent/tool_loop.py`'s `GATEWAY_TOOL_NAMES`.
+- The gateway requires an `MCP-Protocol-Version: 2025-11-25` header on
+  every request; omitting it returns "Unsupported protocol version."
+- The gateway strips or may reject `enum` and `additionalProperties`
+  keys in a tool's `inputSchema`, so `agent/gateway_schema.json` (a
+  second, gateway-shaped generator output, alongside the unchanged
+  `agent/tools_schema.json`) spells every enum's allowed values out in
+  words in the description instead.
+- A Lambda result, success or a handler-level validation error, arrives
+  from the gateway as a JSON string in `result.content[0].text`, with
+  `result.isError` still `false`; the gateway only sets `isError: true`
+  for a gateway-level failure, not a Lambda-level one. `dispatch()`
+  parses that text and returns it as a normal dict either way, so the
+  existing `status = "error" if result.get("error") is not None else
+  "success"` logic in `run_turn()` needed no changes.
+- The gateway's service role allows `lambda:InvokeFunction` on exactly
+  the two function ARNs
+  (`arn:aws:lambda:eu-west-1:<ACCOUNT_ID>:function:sanlam-calculate-premium`
+  and `...:function:sanlam-check-eligibility`), nothing broader.
+- Debug logging was turned on while setting the gateway up; it must be
+  switched off before this project is considered finished, not left on
+  by accident.
+- `search_policy_documents` stays a direct `bedrock-agent-runtime`
+  boto3 `retrieve()` call under every `TOOL_BACKEND`, including
+  `gateway`. Decision and reason: it is the simplest option, and
+  `Retrieve` is not a Lambda function, so there is nothing to put behind
+  a gateway target for it.
+- Pending, not yet run: the no-token/garbage-token rejection check and a
+  full `TOOL_BACKEND=gateway` six-question run
+  (`agent/verify_gateway.py`). No result is claimed for either yet.
+
+New code this session: `agent/gateway_client.py` (token fetch/cache with
+an injectable clock, 60-second-early refresh, one 401-triggered retry,
+the JSON-RPC `tools/call` request, and gateway response parsing into the
+same error-dict shape the other two backends use), the `gateway`
+addition to `agent/tool_loop.py`'s `TOOL_BACKEND` switch (an unrecognized
+`TOOL_BACKEND` value now raises at import time instead of silently
+falling back to `local`), `agent/build_schema.py`'s `build_gateway_schema()`/
+`render_gateway()` (writes `agent/gateway_schema.json`, does not change
+`agent/tools_schema.json`), and `agent/verify_gateway.py` (written, not
+run, and reuses the 8 fixed cases from `agent/verify_lambdas.py`).
+
+Suite: 156 passed, 1 skipped, 0 failed (35 new tests: 19 in
+`tests/test_gateway_backend.py`, 16 in `tests/test_gateway_schema.py`).

@@ -278,12 +278,132 @@ def render():
     return json.dumps(build_schema(), indent=2, sort_keys=False) + "\n"
 
 
+def build_gateway_schema():
+    """
+    The same two Lambda-backed tools as build_schema(), reshaped for an
+    AgentCore Gateway target: unprefixed names, no toolSpec/json
+    wrapper, and no "enum" or "additionalProperties" keys, since the
+    gateway strips or may reject them. Every value an enum would have
+    carried is instead spelled out in words in the description, still
+    computed from the data so it can't drift. search_policy_documents
+    is not a Lambda target and is not included here.
+    """
+    descriptions = DESCRIPTIONS
+    coverage_type_description = (
+        "The type of policy to rate. Must be one of "
+        + ", ".join(coverage_type_enum())
+        + "."
+    )
+    claim_type_description = (
+        descriptions["check_claim_eligibility"]["claim_type"]
+        + " Must be one of "
+        + ", ".join(claim_type_enum())
+        + "."
+    )
+    sub_limit_category_description = (
+        descriptions["check_claim_eligibility"]["sub_limit_category"]
+        + " Must be one of "
+        + ", ".join(sub_limit_category_enum())
+        + "."
+    )
+    exclusion_code_description = (
+        "A specific policy exclusion that applies to this claim. Codes are "
+        "upper case, such as UNLICENSED_DRIVER. Valid codes differ per "
+        "policy; if the tool returns an error listing valid values, pick "
+        "from that list or drop this field."
+    )
+    return [
+        {
+            "name": "calculate_premium_estimate",
+            "description": descriptions["calculate_premium_estimate"]["_tool"],
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "age": {
+                        "type": "number",
+                        "description": descriptions["calculate_premium_estimate"]["age"],
+                    },
+                    "coverage_amount": {
+                        "type": "number",
+                        "description": descriptions["calculate_premium_estimate"]["coverage_amount"],
+                    },
+                    "coverage_type": {
+                        "type": "string",
+                        "description": coverage_type_description,
+                    },
+                    "risk_factors": {
+                        "type": "object",
+                        "properties": risk_factor_properties(),
+                        "description": descriptions["calculate_premium_estimate"]["risk_factors"],
+                    },
+                },
+                "required": ["age", "coverage_amount", "coverage_type"],
+            },
+        },
+        {
+            "name": "check_claim_eligibility",
+            "description": descriptions["check_claim_eligibility"]["_tool"],
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "policy_id": {
+                        "type": "string",
+                        "description": descriptions["check_claim_eligibility"]["policy_id"],
+                    },
+                    "claim_type": {
+                        "type": "string",
+                        "description": claim_type_description,
+                    },
+                    "claim_amount": {
+                        "type": "number",
+                        "description": descriptions["check_claim_eligibility"]["claim_amount"],
+                    },
+                    "claim_date": {
+                        "type": "string",
+                        "description": descriptions["check_claim_eligibility"]["claim_date"],
+                    },
+                    "diagnosis_date": {
+                        "type": "string",
+                        "description": descriptions["check_claim_eligibility"]["diagnosis_date"],
+                    },
+                    "claim_subtype": {
+                        "type": "string",
+                        "description": descriptions["check_claim_eligibility"]["claim_subtype"],
+                    },
+                    "exclusion_code": {
+                        "type": "string",
+                        "description": exclusion_code_description,
+                    },
+                    "sub_limit_category": {
+                        "type": "string",
+                        "description": sub_limit_category_description,
+                    },
+                    "disability_onset_date": {
+                        "type": "string",
+                        "description": descriptions["check_claim_eligibility"]["disability_onset_date"],
+                    },
+                },
+                "required": ["policy_id", "claim_type", "claim_amount", "claim_date"],
+            },
+        },
+    ]
+
+
+def render_gateway():
+    return json.dumps(build_gateway_schema(), indent=2, sort_keys=False) + "\n"
+
+
 if __name__ == "__main__":
     output_path = os.path.join(BASE_DIR, "tools_schema.json")
     with open(output_path, "w") as f:
         f.write(render())
 
+    gateway_output_path = os.path.join(BASE_DIR, "gateway_schema.json")
+    with open(gateway_output_path, "w") as f:
+        f.write(render_gateway())
+
     print(f"Wrote {output_path}")
+    print(f"Wrote {gateway_output_path}")
     print(f"exclusion_code enum size: {len(exclusion_code_enum())}")
     print(f"sub_limit_category enum size: {len(sub_limit_category_enum())}")
     print(f"sub_limit_category values on more than one policy: {duplicated_sub_limit_categories()}")

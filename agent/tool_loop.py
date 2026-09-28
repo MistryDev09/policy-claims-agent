@@ -16,13 +16,29 @@ KB_RESULTS = 8
 
 # "local" calls the two Lambda handlers as plain Python functions (the
 # default, no AWS needed). "lambda" routes them through a real deployed
-# Lambda via boto3 invoke() instead. Reading an env var is not an AWS
-# call, so this is safe to evaluate at import time.
+# Lambda via boto3 invoke() instead. "gateway" routes them through an
+# AgentCore Gateway (MCP + Cognito OAuth) instead. Reading an env var is
+# not an AWS call, so this is safe to evaluate at import time.
 TOOL_BACKEND = os.environ.get("TOOL_BACKEND", "local")
+
+_VALID_BACKENDS = {"local", "lambda", "gateway"}
+if TOOL_BACKEND not in _VALID_BACKENDS:
+    raise ValueError(
+        f"Unknown TOOL_BACKEND {TOOL_BACKEND!r}; must be one of {sorted(_VALID_BACKENDS)}. "
+        "Refusing to start rather than silently falling back to 'local'."
+    )
 
 FUNCTION_NAMES = {
     "calculate_premium_estimate": "sanlam-calculate-premium",
     "check_claim_eligibility": "sanlam-check-eligibility",
+}
+
+# Gateway target names are the target's own name plus three underscores
+# plus the tool name (an AgentCore Gateway convention), unrelated to
+# FUNCTION_NAMES above; the model-facing tool names never change.
+GATEWAY_TOOL_NAMES = {
+    "calculate_premium_estimate": "calculate-premium___calculate_premium_estimate",
+    "check_claim_eligibility": "check-eligibility___check_claim_eligibility",
 }
 
 # Lazily created and cached: only ever instantiated the first time a
@@ -37,7 +53,9 @@ REPO_ROOT = os.path.dirname(BASE_DIR)
 # (load a Lambda handler by file path, no package imports involved),
 # reuse it instead of writing a second copy of the same three lines.
 sys.path.insert(0, REPO_ROOT)
+sys.path.insert(0, BASE_DIR)
 from cli_demo import _load_handler  # noqa: E402
+import gateway_client  # noqa: E402
 
 with open(os.path.join(BASE_DIR, "tools_schema.json")) as f:
     TOOL_CONFIG = json.load(f)
@@ -144,15 +162,17 @@ def _invoke_lambda(function_name, tool_input):
 
 def dispatch(name, tool_input, kb_client=None):
     """
-    The ONE place tool execution happens, later this becomes a
-    lambda.invoke() or an MCP call per tool, without touching run_turn.
-    TOOL_BACKEND picks whether the two Lambda-backed tools run as local
-    Python functions (default) or as real deployed Lambda invocations.
-    search_policy_documents and the unknown-tool fallback are always
-    local, the backend switch only applies to the two named functions.
+    The ONE place tool execution happens. TOOL_BACKEND picks whether the
+    two Lambda-backed tools run as local Python functions (default), as
+    real deployed Lambda invocations, or through an AgentCore Gateway
+    (MCP + Cognito OAuth). search_policy_documents and the unknown-tool
+    fallback are always local, the backend switch only applies to the
+    two named functions.
     """
     if name in FUNCTION_NAMES and TOOL_BACKEND == "lambda":
         return _invoke_lambda(FUNCTION_NAMES[name], tool_input)
+    if name in GATEWAY_TOOL_NAMES and TOOL_BACKEND == "gateway":
+        return gateway_client.call_tool(GATEWAY_TOOL_NAMES[name], tool_input, os.environ)
     if name == "calculate_premium_estimate":
         handler = _load_handler("calculate_premium", "calculate_premium.py")
         return handler(tool_input, None)

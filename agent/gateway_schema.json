@@ -1,0 +1,100 @@
+[
+  {
+    "name": "calculate_premium_estimate",
+    "description": "Estimates a monthly premium from a fixed rate table. Never calculate premiums yourself; always call this tool and report its premium_estimate and breakdown exactly. Only life, critical_illness, disability, and funeral policies can be rated. For any other product, such as pet, motor, home, travel, device, or legal, do not call this tool; tell the user that premium estimates are not available for that product. If the tool returns an error, read the error fields, fix the input or ask the user for the missing detail, then retry.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "age": {
+          "type": "number",
+          "description": "The person's age in whole years. If the user gives a fractional age, pass it as given; the tool uses age last birthday and reports the age it actually used."
+        },
+        "coverage_amount": {
+          "type": "number",
+          "description": "The requested coverage amount in South African rand (ZAR)."
+        },
+        "coverage_type": {
+          "type": "string",
+          "description": "The type of policy to rate. Must be one of critical_illness, disability, funeral, life."
+        },
+        "risk_factors": {
+          "type": "object",
+          "properties": {
+            "additional_dependents": {
+              "type": "boolean"
+            },
+            "family_history": {
+              "type": "boolean"
+            },
+            "high_risk_occupation": {
+              "type": "boolean"
+            },
+            "manual_labour": {
+              "type": "boolean"
+            },
+            "smoker": {
+              "type": "boolean"
+            }
+          },
+          "description": "Boolean risk factors relevant to the coverage type. Only include a factor the user actually stated; never assume true or false for anything they did not mention."
+        }
+      },
+      "required": [
+        "age",
+        "coverage_amount",
+        "coverage_type"
+      ]
+    }
+  },
+  {
+    "name": "check_claim_eligibility",
+    "description": "Checks a claim against one policy using fixed rules and returns eligible, approved_amount, and a reason. Never decide eligibility or amounts yourself; relay the tool's result and reason. Amounts are in South African rand (ZAR). If the tool returns an error, read the error fields, ask the user for what is missing, or retry with corrected values. Do not tell the user the claim is eligible or denied when the tool returned an error.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "policy_id": {
+          "type": "string",
+          "description": "The exact policy ID the user gave, in the format POL-0000. If the user has not given one, ask for it."
+        },
+        "claim_type": {
+          "type": "string",
+          "description": "The type of coverage the claim is being made under. Must match the policy's own coverage type. If the tool returns an error naming the policy's actual coverage type, retry with that type. Must be one of critical_illness, device, disability, funeral, home, legal, life, motor, pet, travel."
+        },
+        "claim_amount": {
+          "type": "number",
+          "description": "The amount being claimed, in South African rand (ZAR)."
+        },
+        "claim_date": {
+          "type": "string",
+          "description": "The date of the claim, in YYYY-MM-DD format. Use today's date from the system prompt unless the user says otherwise; never invent a date."
+        },
+        "diagnosis_date": {
+          "type": "string",
+          "description": "The date a condition was diagnosed, in YYYY-MM-DD format. Ask the user for it on every critical_illness claim; do not guess it or reuse the claim date."
+        },
+        "claim_subtype": {
+          "type": "string",
+          "description": "The specific type of incident, such as collision, fire, or theft. Ask the user for it on third-party, fire, and theft motor claims."
+        },
+        "exclusion_code": {
+          "type": "string",
+          "description": "A specific policy exclusion that applies to this claim. Codes are upper case, such as UNLICENSED_DRIVER. Valid codes differ per policy; if the tool returns an error listing valid values, pick from that list or drop this field."
+        },
+        "sub_limit_category": {
+          "type": "string",
+          "description": "The specific sub-limited item the claim is for, such as contents, child, or windscreen. Valid values differ per policy; if the tool returns an error listing valid values, retry with one of those. Must be one of baggage, bail_assistance, buildings, cancellation, child, child_under_21, contents, electronics_jewelry, main_member, medical, portable_electronics, screen_replacements_per_year, spouse, stolen_cash, tick_borne_diseases, towing, windscreen."
+        },
+        "disability_onset_date": {
+          "type": "string",
+          "description": "For disability claims with a deferred period, the date the disability began, in YYYY-MM-DD format, if the user has stated it."
+        }
+      },
+      "required": [
+        "policy_id",
+        "claim_type",
+        "claim_amount",
+        "claim_date"
+      ]
+    }
+  }
+]

@@ -3,6 +3,15 @@
 ## How to run
 - Install dependencies: `pip install -r requirements.txt`
 - Authenticate as an IAM user (not root) in `eu-west-1`: `aws login`
+- The agent loop's `TOOL_BACKEND` env var picks how the two Lambda-backed
+  tools run: `local` (default, plain Python functions, no AWS), `lambda`
+  (real deployed Lambda via boto3), or `gateway` (an AgentCore Gateway
+  over MCP, authenticated via a Cognito client-credentials token). The
+  gateway backend needs its config in `.env` (never committed) and
+  loaded into the shell before running anything:
+  `set -a; source .env; set +a`. The variable names it reads are
+  `GATEWAY_URL`, `CLIENT_ID`, `CLIENT_SECRET`, `TOKEN_URL`, `SCOPE`, each
+  set in `.env` (gitignored, never committed).
 
 ## Future work
 - At real scale, the agent would call a `get_policy_details(policy_id)`

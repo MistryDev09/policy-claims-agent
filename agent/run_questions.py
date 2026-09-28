@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 import boto3
 
-from tool_loop import REGION, run_turn
+from tool_loop import REGION, TOOL_BACKEND, run_turn
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOGS_DIR = os.path.join(REPO_ROOT, "logs")
@@ -58,7 +58,7 @@ def main():
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     log_path = os.path.join(LOGS_DIR, f"transcript_{timestamp}.md")
-    lines = [f"# Transcript {timestamp}\n\n"]
+    lines = [f"# Transcript {timestamp}\n\n", f"Backend: {TOOL_BACKEND}\n\n"]
 
     for question in questions:
         print(f"\nQ: {question}")
