@@ -15,3 +15,6 @@ __pycache__/
 
 # Large/binary local artifacts not meant for the repo
 data/sanlam-insurance-data.zip
+
+# Local scratch scripts/experiments — never committed
+scratch/
