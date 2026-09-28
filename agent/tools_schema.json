@@ -84,7 +84,7 @@
                   "pet",
                   "travel"
                 ],
-                "description": "The type of coverage the claim is being made under. Must match the policy's own coverage type."
+                "description": "The type of coverage the claim is being made under. Must match the policy's own coverage type. If the tool returns an error naming the policy's actual coverage type, retry with that type."
               },
               "claim_amount": {
                 "type": "number",

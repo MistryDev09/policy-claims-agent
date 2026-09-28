@@ -142,16 +142,54 @@ def test_nonexistent_policy_errors_no_crash(check_eligibility):
     assert result["claim_amount"] == 100000
 
 
-def test_claim_type_mismatch(check_eligibility):
+# --- claim_type mismatch as a self-correcting validation error, not a
+# denial. The policy's real coverage type is metadata the caller cannot
+# know in advance (it only ever gets a policy_id from the user), so a
+# wrong guess should look like bad input the caller can retry, not a
+# real denied claim with nothing to correct against.
+
+
+def test_claim_type_mismatch_is_a_validation_error_naming_the_real_type(check_eligibility):
     # POL-0001 is a life policy; filing a motor claim against it.
     result = check_eligibility(
         {"policy_id": "POL-0001", "claim_type": "motor", "claim_amount": 10000, "claim_date": "2024-08-01"},
         None,
     )
+    assert result["error"] == {
+        "claim_type": "policy POL-0001 is a life policy, not motor; retry with claim_type 'life'"
+    }
+    assert "eligible" not in result
+    assert "approved_amount" not in result
+    assert "reason" not in result
+
+
+def test_matching_claim_type_still_works(check_eligibility):
+    # Regression: POL-0006 is a home policy; claim_type "home" is correct
+    # and must proceed normally, no claim_type error.
+    result = check_eligibility(
+        {"policy_id": "POL-0006", "claim_type": "home", "claim_amount": 100000, "claim_date": "2026-01-20"},
+        None,
+    )
     assert result["error"] is None
-    assert result["eligible"] is False
-    assert result["approved_amount"] == 0
-    assert result["reason"] == "claim_type does not match policy coverage_type"
+    assert "claim_type" not in (result.get("error") or {})
+    assert result["eligible"] is True
+
+
+def test_unknown_policy_id_reports_only_policy_id_error_not_claim_type(check_eligibility):
+    result = check_eligibility(
+        {"policy_id": "POL-9999", "claim_type": "motor", "claim_amount": 10000, "claim_date": "2024-08-01"},
+        None,
+    )
+    assert result["error"] == {"policy_id": "not found"}
+    assert "claim_type" not in result["error"]
+
+
+def test_claim_type_mismatch_combined_with_another_error_reports_both(check_eligibility):
+    result = check_eligibility(
+        {"policy_id": "POL-0001", "claim_type": "motor", "claim_amount": 10000, "claim_date": "not-a-date"},
+        None,
+    )
+    assert set(result["error"].keys()) == {"claim_type", "claim_date"}
 
 
 def test_claim_exceeds_overall_coverage_amount_is_capped(check_eligibility):

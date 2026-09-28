@@ -196,8 +196,19 @@ def test_search_with_no_results_returns_note(tool_loop):
     assert result == {"results": [], "note": "no documents found"}
 
 
-def test_system_prompt_contains_todays_date_and_claim_type_mismatch_rule(tool_loop):
+def test_system_prompt_contains_todays_date_and_claim_type_retry_rule(tool_loop):
     prompt = tool_loop.build_system_prompt()
     assert date.today().isoformat() in prompt
-    assert "does not match" in prompt
-    assert "different type of cover" in prompt
+    # New rule: retry with the actual coverage type the tool named,
+    # do not stop and ask the user first.
+    assert "retry the call with that type" in prompt
+    assert "actual coverage type" in prompt
+    # The old rule this replaces must be gone, not just supplemented.
+    assert "ask which policy or claim type they meant" not in prompt
+    assert "different type of cover than they described" not in prompt
+
+
+def test_system_prompt_says_to_phrase_search_query_from_users_words_not_guessed_claim_type(tool_loop):
+    prompt = tool_loop.build_system_prompt()
+    assert "phrase the search query from the user's own words" in prompt.lower()
+    assert "never from a claim_type you guessed" in prompt.lower()

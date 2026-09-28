@@ -1,5 +1,5 @@
 """
-Generates agent/tools_schema.json — the Bedrock Converse API toolConfig
+Generates agent/tools_schema.json, the Bedrock Converse API toolConfig
 for the three tools the Day 4 agent loop will call. All enums are
 computed from data/policies.json and data/rate_table.json at generation
 time so they can never drift out of sync with the underlying data.
@@ -62,7 +62,8 @@ DESCRIPTIONS = {
         ),
         "claim_type": (
             "The type of coverage the claim is being made under. Must match the "
-            "policy's own coverage type."
+            "policy's own coverage type. If the tool returns an error naming the "
+            "policy's actual coverage type, retry with that type."
         ),
         "claim_amount": "The amount being claimed, in South African rand (ZAR).",
         "claim_date": (
@@ -146,12 +147,12 @@ def sub_limit_category_enum():
 
 
 def duplicated_sub_limit_categories():
-    # Categories that appear on more than one policy — informational
+    # Categories that appear on more than one policy, informational
     # only, the enum itself stays a flat union regardless.
     counts = Counter()
     for p in POLICIES:
-        # .update() on a dict sums its VALUES as counts, not 1-per-key —
-        # pass .keys() explicitly so each policy contributes 1 per
+        # .update() on a dict sums its VALUES as counts, not 1-per-key,
+        # so pass .keys() explicitly so each policy contributes 1 per
         # category it has, regardless of that category's rand amount.
         counts.update(p.get("sub_limits", {}).keys())
     return sorted(name for name, count in counts.items() if count > 1)

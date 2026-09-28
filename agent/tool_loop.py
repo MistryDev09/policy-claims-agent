@@ -18,7 +18,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(BASE_DIR)
 
 # cli_demo.py's _load_handler already does exactly what dispatch() needs
-# (load a Lambda handler by file path, no package imports involved) —
+# (load a Lambda handler by file path, no package imports involved),
 # reuse it instead of writing a second copy of the same three lines.
 sys.path.insert(0, REPO_ROOT)
 from cli_demo import _load_handler  # noqa: E402
@@ -29,7 +29,7 @@ with open(os.path.join(BASE_DIR, "tools_schema.json")) as f:
 
 def build_system_prompt():
     """
-    Plain-words rules for the model, not enforced in code — the tools
+    Plain-words rules for the model, not enforced in code: the tools
     themselves are the real guardrail (they validate/reject bad input),
     this is guidance for how the model should behave around them.
     """
@@ -46,13 +46,18 @@ def build_system_prompt():
         "guessing or assuming a value. If search_policy_documents does not "
         "return text that answers the question, say the documents do not "
         "cover it rather than answering from general knowledge. If "
-        "check_claim_eligibility returns that claim_type does not match "
-        "the policy's coverage type, tell the user that policy is a "
-        "different type of cover than they described and ask which policy "
-        "or claim type they meant; do not present this as a denied claim. "
-        "If any tool returns an error, do not state whether the claim is "
-        "eligible or what the premium is; instead read the error fields "
-        "and ask the user for the missing or corrected detail."
+        "check_claim_eligibility returns a claim_type error naming the "
+        "policy's actual coverage type, retry the call with that type "
+        "instead of asking the user. Only ask the user which type of "
+        "cover they meant if they say outright that they want a "
+        "different product than the policy covers. When you call both "
+        "check_claim_eligibility and search_policy_documents in the "
+        "same turn, phrase the search query from the user's own words "
+        "about the product, such as home insurance, never from a "
+        "claim_type you guessed. If any tool returns an error, do not "
+        "state whether the claim is eligible or what the premium is; "
+        "instead read the error fields and ask the user for the "
+        "missing or corrected detail."
     )
 
 
@@ -82,7 +87,7 @@ def _search_policy_documents(tool_input, kb_client):
 
 def dispatch(name, tool_input, kb_client=None):
     """
-    The ONE place tool execution happens — later this becomes a
+    The ONE place tool execution happens, later this becomes a
     lambda.invoke() or an MCP call per tool, without touching run_turn.
     """
     if name == "calculate_premium_estimate":
@@ -99,7 +104,7 @@ def dispatch(name, tool_input, kb_client=None):
 def run_turn(messages, client=None, kb_client=None):
     """
     Drives one user turn to completion, running as many tool_use rounds
-    as needed (capped at MAX_ITERATIONS). Mutates `messages` in place —
+    as needed (capped at MAX_ITERATIONS). Mutates `messages` in place,
     the caller keeps the same list across turns for multi-turn chat.
     Returns (final_text, trace); trace is a list of
     {"tool", "input", "result", "status"} in call order.
@@ -120,7 +125,7 @@ def run_turn(messages, client=None, kb_client=None):
         stop_reason = response["stopReason"]
 
         if stop_reason == "tool_use":
-            # A single model turn can request several tools at once — all
+            # A single model turn can request several tools at once, all
             # of them must be answered together, in one user message, or
             # the next converse() call is malformed.
             tool_result_blocks = []
