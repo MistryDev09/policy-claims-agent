@@ -100,6 +100,9 @@ def test_replay_against_claims_json(check_eligibility, claim):
 
     if expected_eligible:
         expected_amount = APPROVED_SUBLIMIT_AMOUNTS.get(claim["claim_id"], claim["amount"])
+        excess = policy.get("excess")
+        if excess:
+            expected_amount = max(0, expected_amount - excess)
         assert result["approved_amount"] == expected_amount
     else:
         assert result["approved_amount"] == 0
@@ -180,6 +183,76 @@ def test_waiting_period_boundary(check_eligibility):
     )
     assert result_on_cutoff["error"] is None
     assert result_on_cutoff["eligible"] is True
+
+
+def test_excess_deducted_from_approved_amount(check_eligibility):
+    # POL-0005 (motor) carries a 6,500 excess, waiting_period_days=2.
+    policy = POLICIES["POL-0005"]
+    result = check_eligibility(
+        {
+            "policy_id": "POL-0005",
+            "claim_type": "motor",
+            "claim_amount": 45000,
+            "claim_date": "2026-05-12",
+        },
+        None,
+    )
+    assert result["error"] is None
+    assert result["eligible"] is True
+    assert result["approved_amount"] == 45000 - policy["excess"]
+    assert "excess" in result["reason"]
+
+
+def test_excess_floors_at_zero_not_negative(check_eligibility):
+    # POL-0012 (device) excess is 750; a claim smaller than the excess
+    # must approve at 0, not a negative number.
+    policy = POLICIES["POL-0012"]
+    result = check_eligibility(
+        {
+            "policy_id": "POL-0012",
+            "claim_type": "device",
+            "claim_amount": 500,
+            "claim_date": "2026-07-01",
+        },
+        None,
+    )
+    assert result["error"] is None
+    assert result["eligible"] is True
+    assert result["approved_amount"] == 0
+
+
+def test_unknown_sub_limit_category_lists_valid_values(check_eligibility):
+    result = check_eligibility(
+        {
+            "policy_id": "POL-0006",
+            "claim_type": "home",
+            "claim_amount": 100000,
+            "claim_date": "2026-01-20",
+            "sub_limit_category": "not_a_real_category",
+        },
+        None,
+    )
+    assert "eligible" not in result
+    message = result["error"]["sub_limit_category"]
+    for valid_category in POLICIES["POL-0006"]["sub_limits"]:
+        assert valid_category in message
+
+
+def test_unknown_exclusion_code_errors_and_lists_valid_values(check_eligibility):
+    result = check_eligibility(
+        {
+            "policy_id": "POL-0001",
+            "claim_type": "life",
+            "claim_amount": 100000,
+            "claim_date": "2024-08-01",
+            "exclusion_code": "NOT_A_REAL_CODE",
+        },
+        None,
+    )
+    assert "eligible" not in result
+    message = result["error"]["exclusion_code"]
+    for valid_code in POLICIES["POL-0001"]["exclusion_codes"]:
+        assert valid_code in message
 
 
 def test_error_echoes_inputs_and_keys_error_by_field(check_eligibility):

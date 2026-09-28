@@ -9,6 +9,7 @@ SUCCESS_CASES = [
     ("life", 34, 500000, {}, 325.0),
     ("life", 34, 500000, {"family_history": True}, 325.0),  # invalid key for life, silently filtered
     ("life", 34, 500000, {"smoker": True, "high_risk_occupation": False}, 487.5),  # False must not apply
+    ("life", 34, 500000, {"smoker": 1}, 325.0),  # truthy-but-not-True must not apply (only literal True)
     ("critical_illness", 50, 400000, {"smoker": True, "family_history": True}, 1164.8),
     ("funeral", 70, 50000, {"additional_dependents": True}, 218.5),
     ("life", 18, 500000, {}, 225.0),   # lower age-band boundary

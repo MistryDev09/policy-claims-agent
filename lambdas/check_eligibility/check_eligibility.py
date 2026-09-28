@@ -46,11 +46,16 @@ def lambda_handler(event, context):
         all 9 input fields echoed back, plus
         {"error": {"<field>": "<description>", ...}}
         eligible/approved_amount/reason are absent entirely, not
-        present-and-null.
+        present-and-null. An unrecognized sub_limit_category or
+        exclusion_code is a validation error (not a silent no-op), and
+        the message lists the policy's actual valid values so a caller
+        can self-correct.
 
     Denial checks run in order and short-circuit at the first one that
-    fires. Capping (sub-limit, then overall coverage_amount) only happens
-    once every denial-type check has passed clean.
+    fires. Capping (sub-limit, else overall coverage_amount) only happens
+    once every denial-type check has passed clean. If the policy carries
+    an `excess` (POL-0005, POL-0012 in this dataset), it's deducted from
+    the approved amount last, floored at 0.
     """
     policy_id = event.get("policy_id")
     claim_type = event.get("claim_type")
@@ -104,11 +109,23 @@ def lambda_handler(event, context):
     if claim_date_raw is None:
         errors["claim_date"] = "required"
 
-    # sub_limit_category validity depends on having found the policy —
-    # only checked once policy_id resolved.
+    # sub_limit_category / exclusion_code validity depends on having found
+    # the policy — only checked once policy_id resolved. Both list the
+    # policy's actual valid values so a caller (the Day 4 agent) has
+    # something to correct itself against, instead of a bare "invalid".
     if policy is not None and sub_limit_category is not None:
-        if sub_limit_category not in policy.get("sub_limits", {}):
-            errors["sub_limit_category"] = "not a valid sub-limit for this policy"
+        valid_categories = sorted(policy.get("sub_limits", {}))
+        if sub_limit_category not in valid_categories:
+            errors["sub_limit_category"] = (
+                f"not a valid sub-limit for this policy (valid: {valid_categories})"
+            )
+
+    if policy is not None and exclusion_code is not None:
+        valid_codes = sorted(policy.get("exclusion_codes", []))
+        if exclusion_code not in valid_codes:
+            errors["exclusion_code"] = (
+                f"not a valid exclusion code for this policy (valid: {valid_codes})"
+            )
 
     if errors:
         return {**echo(), "error": errors}
@@ -174,31 +191,40 @@ def lambda_handler(event, context):
         else:
             reason_notes.append("trip end date not on file — date bounds not evaluated")
 
-    if exclusion_code is not None and exclusion_code in policy.get("exclusion_codes", []):
+    # exclusion_code validity (against this policy's actual exclusion_codes)
+    # was already enforced above, in the validation pass — by this point,
+    # if it was supplied at all, it's a real match.
+    if exclusion_code is not None:
         return deny(f"EXCLUSION_MATCHED_{exclusion_code}")
 
     # sub-limit cap
+    sub_limit_applied = False
     if sub_limit_category is not None:
         sub_limit = policy["sub_limits"][sub_limit_category]
         if claim_amount > sub_limit:
-            reason = f"SUB_LIMIT_APPLIED_{sub_limit_category.upper()}_{sub_limit}"
-            reason_notes.insert(0, reason)
-            return {
-                **echo(),
-                "eligible": True,
-                "approved_amount": sub_limit,
-                "reason": ", ".join(reason_notes),
-                "error": None,
-            }
+            reason_notes.insert(0, f"SUB_LIMIT_APPLIED_{sub_limit_category.upper()}_{sub_limit}")
+            approved_amount = sub_limit
+            sub_limit_applied = True
 
-    # overall coverage_amount cap
-    coverage_amount = policy["coverage_amount"]
-    if claim_amount > coverage_amount:
-        reason_notes.insert(0, f"CAPPED_AT_COVERAGE_AMOUNT_{coverage_amount}")
-        approved_amount = coverage_amount
-    else:
-        reason_notes.insert(0, "within coverage limit, waiting period satisfied, no exclusion matched")
-        approved_amount = claim_amount
+    # overall coverage_amount cap — only when no named sub-limit already
+    # capped this claim (a sub-limit is always <= coverage_amount in this
+    # dataset, so there's nothing further to cap once one has applied).
+    if not sub_limit_applied:
+        coverage_amount = policy["coverage_amount"]
+        if claim_amount > coverage_amount:
+            reason_notes.insert(0, f"CAPPED_AT_COVERAGE_AMOUNT_{coverage_amount}")
+            approved_amount = coverage_amount
+        else:
+            reason_notes.insert(0, "within coverage limit, waiting period satisfied, no exclusion matched")
+            approved_amount = claim_amount
+
+    # policy excess: a fixed amount the policyholder carries themselves on
+    # any approved payout (motor/device policies in this dataset). Applied
+    # last, after any sub-limit/coverage-amount capping, and floored at 0.
+    excess = policy.get("excess")
+    if excess:
+        approved_amount = max(0, approved_amount - excess)
+        reason_notes.append(f"less R{excess} excess")
 
     return {
         **echo(),

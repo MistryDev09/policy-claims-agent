@@ -269,6 +269,60 @@ of the handler, not a defect.
 
 ---
 
+## Day 3 addendum — mutation testing + 3 real fixes found by review
+
+Ran a manual mutation-testing pass: deliberately broke `check_eligibility`
+and `calculate_premium` one bug at a time, confirmed the suite caught it,
+then reverted with `git checkout`. Results:
+
+| Mutation | Caught? |
+|---|---|
+| waiting-period `<` → `<=` | ✅ yes (`test_waiting_period_boundary`) |
+| life age 31-45 rate 0.65 → 0.66 | ✅ yes (7 tests failed) |
+| deleted the sub-limit cap (`approved_amount = sub_limit`) | ✅ yes (3 replay tests failed: CLM-005/011/014) |
+| dropped the `is True` check on risk factors (`risk_factors.get(name)` truthy-only) | ❌ **not caught initially** |
+
+The 4th mutation exposed a real gap: the existing `{"high_risk_occupation":
+False}` test only proves `False` doesn't apply, and `False` is falsy
+under any truthy check — it can't distinguish `is True` from a plain
+truthiness check. Added `{"smoker": 1}` (truthy-but-not-`True`) as a new
+success case in `test_calculate_premium.py`, confirmed it passes clean and
+fails against the reintroduced mutation, then reverted the mutation.
+
+**Three separate review findings, fixed in `check_eligibility.py`:**
+1. **Unrecognized `sub_limit_category`** returned an error but the message
+   didn't list the policy's actual valid keys — an agent guessing wrong
+   had nothing to correct against. Fixed: message now includes
+   `(valid: [...])`.
+2. **Unrecognized `exclusion_code`** wasn't an error at all — it silently
+   no-op'd and fell through to the coverage/sub-limit check as if nothing
+   had been supplied, giving a caller zero feedback on a typo'd code.
+   Fixed: now a validation error, same "(valid: [...])" pattern as above.
+3. **`excess` (POL-0005: 6500, POL-0012: 750) was completely unused** —
+   present in `policies.json` but never read anywhere in the handler, so
+   `approved_amount` never reflected it. Fixed: deducted from
+   `approved_amount` last (after any sub-limit/coverage-amount capping),
+   floored at 0, noted in the `reason` string. This changes CLM-004's
+   expected replay outcome (POL-0005, motor) from `approved_amount:
+   45000` to `38500` — `claims.json`'s `"amount"` field was always the
+   claimed amount, not a stated payout, so this isn't a data
+   inconsistency the way CLM-005 was; the replay test now accounts for
+   `excess` generically for any policy that carries one.
+
+Added 4 new tests covering all three fixes (`test_excess_deducted_from_
+approved_amount`, `test_excess_floors_at_zero_not_negative`,
+`test_unknown_sub_limit_category_lists_valid_values`,
+`test_unknown_exclusion_code_errors_and_lists_valid_values`) plus the
+`{"smoker": 1}` case above. Full suite: **48 passed, 1 skipped** (still
+just CLM-007).
+
+**Still not modelled, left as a known limitation:** per-claim-subtype
+waiting periods, POL-0022's missing `end_date`, and deferred-period skip
+behavior (see the earlier Day 3 entry) — none of today's fixes touch
+those.
+
+---
+
 ## Day 4-6
 
 Not started. See original brief for task breakdown. Day 4 should reuse
