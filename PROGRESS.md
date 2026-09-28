@@ -826,17 +826,21 @@ call):
   the two function ARNs
   (`arn:aws:lambda:eu-west-1:<ACCOUNT_ID>:function:sanlam-calculate-premium`
   and `...:function:sanlam-check-eligibility`), nothing broader.
-- Debug logging was turned on while setting the gateway up; it must be
-  switched off before this project is considered finished, not left on
-  by accident.
+- Debug logging was turned on while setting the gateway up.
 - `search_policy_documents` stays a direct `bedrock-agent-runtime`
   boto3 `retrieve()` call under every `TOOL_BACKEND`, including
   `gateway`. Decision and reason: it is the simplest option, and
   `Retrieve` is not a Lambda function, so there is nothing to put behind
   a gateway target for it.
-- Pending, not yet run: the no-token/garbage-token rejection check and a
-  full `TOOL_BACKEND=gateway` six-question run
-  (`agent/verify_gateway.py`). No result is claimed for either yet.
+- No-token / garbage-token `tools/list` rejection check
+  (`agent/verify_gateway.py`'s `check_no_auth_rejected()`): pending
+  confirmation from the user, not yet reported to this session.
+- `TOOL_BACKEND=gateway python3 agent/run_questions.py` six-question
+  run: pending confirmation from the user. A transcript file exists
+  locally from a run the user did outside this session, but its result
+  is not recorded here until the user states it directly, not inferred
+  from the file's presence.
+- Debug logging switch-off: pending confirmation from the user.
 
 New code this session: `agent/gateway_client.py` (token fetch/cache with
 an injectable clock, 60-second-early refresh, one 401-triggered retry,
@@ -851,3 +855,17 @@ run, and reuses the 8 fixed cases from `agent/verify_lambdas.py`).
 
 Suite: 156 passed, 1 skipped, 0 failed (35 new tests: 19 in
 `tests/test_gateway_backend.py`, 16 in `tests/test_gateway_schema.py`).
+
+**Day 4 status:** the tool schema is generated from `data/policies.json`
+and `data/rate_table.json`, not hand-typed, so its enums cannot drift
+out of sync with the underlying data. The agent loop supports three
+backends (local, lambda, gateway) behind one `TOOL_BACKEND` switch, with
+`dispatch()` staying the single point where tool execution happens
+regardless of which one is active. Both Lambdas are deployed with
+least-privilege roles (logs only, scoped to their own function ARN). An
+AgentCore Gateway was created with two Lambda targets behind JWT
+(Cognito) inbound auth. `sub_limit_category` and `exclusion_code` scale
+to more policies via a flat union enum plus self-correcting validation
+errors, rather than a per-policy schema; see the `get_policy_details`
+future-work note. Day 4's definition of done was met via
+`<PATH PENDING: gateway or fallback, to be confirmed by the user>`.
