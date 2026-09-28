@@ -212,3 +212,80 @@ def test_system_prompt_says_to_phrase_search_query_from_users_words_not_guessed_
     prompt = tool_loop.build_system_prompt()
     assert "phrase the search query from the user's own words" in prompt.lower()
     assert "never from a claim_type you guessed" in prompt.lower()
+
+
+# --- TOOL_BACKEND=lambda dispatch switch. A fake lambda client is
+# monkeypatched directly onto tool_loop._lambda_client, bypassing real
+# boto3 entirely, with TOOL_BACKEND monkeypatched to "lambda" so
+# dispatch() takes the remote path. monkeypatch reverts both after each
+# test, even though the tool_loop fixture is session-scoped.
+
+
+class FakeLambdaClient:
+    def __init__(self, response):
+        self.response = response
+        self.last_kwargs = None
+
+    def invoke(self, **kwargs):
+        self.last_kwargs = kwargs
+        return self.response
+
+
+def _lambda_response(payload_dict, function_error=None):
+    import io
+    import json as _json
+
+    response = {"Payload": io.BytesIO(_json.dumps(payload_dict).encode("utf-8"))}
+    if function_error is not None:
+        response["FunctionError"] = function_error
+    return response
+
+
+def test_lambda_backend_sends_tool_input_as_payload(tool_loop, monkeypatch):
+    fake_client = FakeLambdaClient(_lambda_response({"premium_estimate": 487.5, "breakdown": "...", "error": None}))
+    monkeypatch.setattr(tool_loop, "_lambda_client", fake_client)
+    monkeypatch.setattr(tool_loop, "TOOL_BACKEND", "lambda")
+
+    tool_input = {"age": 35, "coverage_amount": 500000, "coverage_type": "life", "risk_factors": {"smoker": True}}
+    tool_loop.dispatch("calculate_premium_estimate", tool_input)
+
+    assert fake_client.last_kwargs["FunctionName"] == "sanlam-calculate-premium"
+    import json as _json
+
+    assert _json.loads(fake_client.last_kwargs["Payload"]) == tool_input
+
+
+def test_lambda_backend_parses_successful_result(tool_loop, monkeypatch):
+    fake_client = FakeLambdaClient(_lambda_response({"eligible": True, "approved_amount": 38500, "reason": "...", "error": None}))
+    monkeypatch.setattr(tool_loop, "_lambda_client", fake_client)
+    monkeypatch.setattr(tool_loop, "TOOL_BACKEND", "lambda")
+
+    result = tool_loop.dispatch(
+        "check_claim_eligibility",
+        {"policy_id": "POL-0005", "claim_type": "motor", "claim_amount": 45000, "claim_date": "2026-09-28"},
+    )
+    assert result == {"eligible": True, "approved_amount": 38500, "reason": "...", "error": None}
+
+
+def test_lambda_backend_function_error_becomes_error_result(tool_loop, monkeypatch):
+    fake_client = FakeLambdaClient(
+        _lambda_response({"errorType": "KeyError", "errorMessage": "boom"}, function_error="Unhandled")
+    )
+    monkeypatch.setattr(tool_loop, "_lambda_client", fake_client)
+    monkeypatch.setattr(tool_loop, "TOOL_BACKEND", "lambda")
+
+    result = tool_loop.dispatch("calculate_premium_estimate", {"age": 35})
+    assert result["error"] == {"lambda": {"errorType": "KeyError", "errorMessage": "boom"}}
+
+
+def test_default_backend_stays_local_not_lambda(tool_loop, monkeypatch):
+    fake_client = FakeLambdaClient(_lambda_response({"premium_estimate": 999, "breakdown": "wrong", "error": None}))
+    monkeypatch.setattr(tool_loop, "_lambda_client", fake_client)
+    # TOOL_BACKEND left at its default ("local") deliberately, not patched.
+
+    result = tool_loop.dispatch(
+        "calculate_premium_estimate",
+        {"age": 35, "coverage_amount": 500000, "coverage_type": "life", "risk_factors": {"smoker": True}},
+    )
+    assert result["premium_estimate"] == 487.5  # real local handler, not the fake's 999
+    assert fake_client.last_kwargs is None  # never called

@@ -652,6 +652,70 @@ evidence and contain no secrets); `logs/*.tmp` is gitignored.
 
 ---
 
+## Self-correcting claim_type mismatch
+
+`check_claim_eligibility` used to return a plain denial ("claim_type
+does not match policy coverage_type") when the caller's `claim_type`
+guess did not match a policy's real coverage type. The caller only ever
+knows the policy ID, never the coverage type, so it has to guess
+`claim_type`, and a wrong guess looked exactly like a real denied claim
+with nothing to self-correct against. Fixed: this is now a validation
+error that names the policy's real coverage type
+(`"policy POL-0006 is a home policy, not motor; retry with claim_type
+'home'"`), moved from the denial chain into the validation pass. The
+system prompt in `agent/tool_loop.py` was updated to match: retry
+automatically with the type the error names, only ask the user if they
+explicitly say they want a different product, and phrase any parallel
+`search_policy_documents` query from the user's own words, never from a
+guessed `claim_type`. `agent/tools_schema.json` was regenerated (only
+the `claim_type` description text changed, diff confirmed).
+
+New tests cover the mismatch error shape, a matching-type regression
+case, an unknown-policy_id case (only `policy_id` errors, not
+`claim_type`), and a mismatch combined with another validation error
+reporting both. A mutation check (temporarily restoring the old denial)
+confirmed the new tests actually fail without the fix, then reverted.
+
+Suite: 109 passed, 1 skipped, 0 failed at that point.
+
+---
+
+## Lambda deployment
+
+Written and tested (where testable without AWS) this session, actual
+deployment has not happened yet, this is not claiming it is deployed:
+
+- `infra/package.py`: builds `build/calculate_premium.zip` and
+  `build/check_eligibility.zip` from the bundled Lambda directories,
+  verifying the bundled JSON matches `data/` before zipping. Covered by
+  `tests/test_package.py`, including a test that extracts a zip to a
+  temp directory and actually runs the handler from there.
+- `infra/policies/lambda-trust.json` and
+  `infra/policies/logs-policy.template.json`: the IAM trust policy and
+  a least-privilege inline logs policy template (placeholders for
+  region, account ID, function name, no other permissions, no wildcards
+  beyond the required `:*` log-stream suffix).
+- `infra/deploy_lambdas.sh`: creates or updates both functions and their
+  roles in `eu-west-1`, tags both with `Project=sanlam-insurance-agent`.
+  Refuses to run under the account root user. Syntax-checked with
+  `bash -n`, not executed.
+- `infra/teardown.sh`: deletes both functions, roles, and log groups,
+  behind an interactive confirmation prompt. Also syntax-checked only.
+- `agent/tool_loop.py`: `dispatch()` gained a `TOOL_BACKEND` switch
+  (`local` by default, `lambda` routes the two Lambda-backed tools
+  through a real `boto3` `invoke()` call instead). The Lambda client is
+  created lazily and cached, never at import time. Covered by new tests
+  using a fake lambda client, no real AWS calls in the test suite.
+- `agent/verify_lambdas.py`: compares the local handler against the
+  deployed Lambda for 8 fixed inputs (including the new claim_type
+  mismatch case), with a fixed `claim_date` so results are
+  deterministic regardless of when it's run. Not executed this
+  session, it makes real AWS calls.
+
+Suite: 117 passed, 1 skipped, 0 failed.
+
+---
+
 ## Day 4-6
 
 Not started beyond the above. See original brief for task breakdown.

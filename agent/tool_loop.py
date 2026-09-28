@@ -14,6 +14,22 @@ KB_ID = "3VPWHXL63S"
 MAX_ITERATIONS = 6
 KB_RESULTS = 8
 
+# "local" calls the two Lambda handlers as plain Python functions (the
+# default, no AWS needed). "lambda" routes them through a real deployed
+# Lambda via boto3 invoke() instead. Reading an env var is not an AWS
+# call, so this is safe to evaluate at import time.
+TOOL_BACKEND = os.environ.get("TOOL_BACKEND", "local")
+
+FUNCTION_NAMES = {
+    "calculate_premium_estimate": "sanlam-calculate-premium",
+    "check_claim_eligibility": "sanlam-check-eligibility",
+}
+
+# Lazily created and cached: only ever instantiated the first time a
+# lambda-backed dispatch actually happens, never at import time, same
+# rule as the "no AWS client at import time" note above.
+_lambda_client = None
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(BASE_DIR)
 
@@ -85,11 +101,42 @@ def _search_policy_documents(tool_input, kb_client):
     }
 
 
+def _get_lambda_client():
+    global _lambda_client
+    if _lambda_client is None:
+        import boto3
+
+        _lambda_client = boto3.client("lambda", region_name=REGION)
+    return _lambda_client
+
+
+def _invoke_lambda(function_name, tool_input):
+    client = _get_lambda_client()
+    response = client.invoke(
+        FunctionName=function_name,
+        Payload=json.dumps(tool_input).encode("utf-8"),
+    )
+    payload = json.loads(response["Payload"].read())
+    if "FunctionError" in response:
+        # The handler itself raised inside Lambda: payload is whatever
+        # AWS reports about that crash, not a normal handler result, so
+        # it gets wrapped as an error the same way dispatch() wraps a
+        # local exception, not returned as-is.
+        return {"error": {"lambda": payload}}
+    return payload
+
+
 def dispatch(name, tool_input, kb_client=None):
     """
     The ONE place tool execution happens, later this becomes a
     lambda.invoke() or an MCP call per tool, without touching run_turn.
+    TOOL_BACKEND picks whether the two Lambda-backed tools run as local
+    Python functions (default) or as real deployed Lambda invocations.
+    search_policy_documents and the unknown-tool fallback are always
+    local, the backend switch only applies to the two named functions.
     """
+    if name in FUNCTION_NAMES and TOOL_BACKEND == "lambda":
+        return _invoke_lambda(FUNCTION_NAMES[name], tool_input)
     if name == "calculate_premium_estimate":
         handler = _load_handler("calculate_premium", "calculate_premium.py")
         return handler(tool_input, None)
