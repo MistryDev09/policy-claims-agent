@@ -620,16 +620,19 @@ AWS calls were made while writing this code):
 - Q2 (life premium): correct, R487.50 (R325 base x 1.5 smoker).
 - Q3 (POL-0005 collision): correct, `approved_amount` 38,500, reply
   names the R6,500 excess explicitly.
-- Q4 (POL-0006 theft eligibility + KB): **partial**. Both tools were
-  called in the same turn as required. But the model guessed
-  `claim_type: "motor"` for "theft claim on POL-0006" — each question
-  runs as a fresh conversation with no memory that Q1 had already
-  established POL-0006 is a *home* policy, so this is a reasoning gap in
-  a stateless single-turn context, not a code bug. That triggered the
-  claim-type-mismatch rule correctly (asked which policy was meant
-  instead of reporting a denial), but it also phrased the KB query
-  around "motor policy," so retrieval missed POL-0006 and returned an
-  unrelated motor/device-policy table instead of the 30-day answer.
+- Q4 (POL-0006 theft eligibility + KB): **partial, not rounded up to a
+  pass.** Both tools were called in the same turn as required. Root
+  cause: the model only knew the policy ID from the user, so it guessed
+  `claim_type: "motor"` for a claim that was actually against a home
+  policy. The mismatch came back from `check_claim_eligibility` as a
+  plain denial, with nothing in the response for the model to
+  self-correct against. The parallel `search_policy_documents` call
+  inherited that same wrong "motor" framing in its query text, so
+  retrieval missed POL-0006 entirely and returned an unrelated
+  motor/device policy table instead of the 30-day answer. This is
+  exactly the design flaw the next commit fixes: turning the mismatch
+  into a validation error that names the policy's real coverage type,
+  so a caller can retry instead of hitting a dead end.
 - Q5 (POL-0020 child funeral sub-limit): correct — the trace shows a
   genuine self-correct: first call used `sub_limit_category: "child"` →
   `status: error` (that's POL-0008's key, not POL-0020's), retried with
