@@ -1,0 +1,17 @@
+# Secrets / local credentials — never commit these
+.env
+*.pem
+
+# OS junk
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local virtualenv
+.venv/
+
+# Large/binary local artifacts not meant for the repo
+data/sanlam-insurance-data.zip
