@@ -1,0 +1,235 @@
+{
+  "tools": [
+    {
+      "toolSpec": {
+        "name": "calculate_premium_estimate",
+        "description": "Estimates a monthly premium from a fixed rate table. Never calculate premiums yourself; always call this tool and report its premium_estimate and breakdown exactly. Only life, critical_illness, disability, and funeral policies can be rated. For any other product, such as pet, motor, home, travel, device, or legal, do not call this tool; tell the user that premium estimates are not available for that product. If the tool returns an error, read the error fields, fix the input or ask the user for the missing detail, then retry.",
+        "inputSchema": {
+          "json": {
+            "type": "object",
+            "properties": {
+              "age": {
+                "type": "number",
+                "description": "The person's age in whole years. If the user gives a fractional age, pass it as given; the tool uses age last birthday and reports the age it actually used."
+              },
+              "coverage_amount": {
+                "type": "number",
+                "description": "The requested coverage amount in South African rand (ZAR)."
+              },
+              "coverage_type": {
+                "type": "string",
+                "enum": [
+                  "critical_illness",
+                  "disability",
+                  "funeral",
+                  "life"
+                ],
+                "description": "The type of policy to rate. Only the values in this enum can be rated."
+              },
+              "risk_factors": {
+                "type": "object",
+                "properties": {
+                  "additional_dependents": {
+                    "type": "boolean"
+                  },
+                  "family_history": {
+                    "type": "boolean"
+                  },
+                  "high_risk_occupation": {
+                    "type": "boolean"
+                  },
+                  "manual_labour": {
+                    "type": "boolean"
+                  },
+                  "smoker": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false,
+                "description": "Boolean risk factors relevant to the coverage type. Only include a factor the user actually stated; never assume true or false for anything they did not mention."
+              }
+            },
+            "required": [
+              "age",
+              "coverage_amount",
+              "coverage_type"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "toolSpec": {
+        "name": "check_claim_eligibility",
+        "description": "Checks a claim against one policy using fixed rules and returns eligible, approved_amount, and a reason. Never decide eligibility or amounts yourself; relay the tool's result and reason. Amounts are in South African rand (ZAR). If the tool returns an error, read the error fields, ask the user for what is missing, or retry with corrected values. Do not tell the user the claim is eligible or denied when the tool returned an error.",
+        "inputSchema": {
+          "json": {
+            "type": "object",
+            "properties": {
+              "policy_id": {
+                "type": "string",
+                "description": "The exact policy ID the user gave, in the format POL-0000. If the user has not given one, ask for it."
+              },
+              "claim_type": {
+                "type": "string",
+                "enum": [
+                  "critical_illness",
+                  "device",
+                  "disability",
+                  "funeral",
+                  "home",
+                  "legal",
+                  "life",
+                  "motor",
+                  "pet",
+                  "travel"
+                ],
+                "description": "The type of coverage the claim is being made under. Must match the policy's own coverage type."
+              },
+              "claim_amount": {
+                "type": "number",
+                "description": "The amount being claimed, in South African rand (ZAR)."
+              },
+              "claim_date": {
+                "type": "string",
+                "description": "The date of the claim, in YYYY-MM-DD format. Use today's date from the system prompt unless the user says otherwise; never invent a date."
+              },
+              "diagnosis_date": {
+                "type": "string",
+                "description": "The date a condition was diagnosed, in YYYY-MM-DD format. Ask the user for it on every critical_illness claim; do not guess it or reuse the claim date."
+              },
+              "claim_subtype": {
+                "type": "string",
+                "description": "The specific type of incident, such as collision, fire, or theft. Ask the user for it on third-party, fire, and theft motor claims."
+              },
+              "exclusion_code": {
+                "type": "string",
+                "enum": [
+                  "ACTIVE_MILITARY_DEPLOYMENT",
+                  "ACT_OF_WAR",
+                  "COLLISION_NOT_COVERED",
+                  "COMMERCIAL_FARE_PAYING",
+                  "CONGENITAL",
+                  "COSMETIC_DAMAGE",
+                  "CRIMINAL_ACT",
+                  "DEFAMATION",
+                  "DENTAL_SCALING",
+                  "DIVORCE_FAMILY_LAW",
+                  "DUI",
+                  "DUI_THIRD_PARTY",
+                  "ELECTIVE_PROCEDURES",
+                  "EXTREME_SPORTS",
+                  "EXTREME_SPORTS_NO_RIDER",
+                  "FLOOD_NO_RIDER",
+                  "HAZARDOUS_HOBBY_NO_RIDER",
+                  "HEREDITARY_CONDITIONS",
+                  "HIRE_OR_REWARD_NO_ENDORSEMENT",
+                  "HIV_NO_RIDER",
+                  "ILLEGAL_ACT",
+                  "ILLEGAL_ACTIVITY",
+                  "KEYS_IN_IGNITION",
+                  "LIQUID_DAMAGE",
+                  "LOSS_MISPLACED",
+                  "MEMBER_NOT_ON_SCHEDULE",
+                  "MENTAL_HEALTH",
+                  "NON_DISCLOSURE",
+                  "NORMAL_PREGNANCY",
+                  "OUT_OF_WARRANTY_BREAKDOWN",
+                  "OVERSLEEPING",
+                  "PRE_EXISTING_12MO",
+                  "PRE_EXISTING_BACK_12MO",
+                  "PRE_EXISTING_CANCER",
+                  "PRE_EXISTING_CARDIO",
+                  "PRE_EXISTING_CONDITION_UNDECLARED",
+                  "PRE_EXISTING_DIABETES",
+                  "PRE_EXISTING_MATTER",
+                  "PROFESSIONAL_SPORTS",
+                  "PRO_CONTACT_SPORT",
+                  "QUARANTINE_COSTS",
+                  "RACING",
+                  "RISING_DAMP",
+                  "SANCTIONED_COUNTRIES",
+                  "SELF_INFLICTED",
+                  "SELF_INFLICTED_24MO",
+                  "STAGE_0_CANCER",
+                  "SUBSIDENCE_HEAVE",
+                  "SUICIDE_12MO",
+                  "SUICIDE_24MO",
+                  "SUICIDE_IN_WAITING_PERIOD",
+                  "TRAVEL_ADVISORY_COUNTRY",
+                  "UNATTENDED_BAGGAGE",
+                  "UNATTENDED_PUBLIC_PLACE",
+                  "UNDISCLOSED_MEMBER",
+                  "UNLICENSED_DRIVER",
+                  "UNLICENSED_PILOT",
+                  "UNOCCUPIED_30_DAYS",
+                  "UNOCCUPIED_60_DAYS",
+                  "UNREGISTERED_DEPENDENT",
+                  "UNROADWORTHY_TYRES",
+                  "WAR_CIVIL_UNREST",
+                  "WATER_DAMAGE_BEYOND_IP_RATING",
+                  "WEAR_AND_TEAR"
+                ],
+                "description": "A specific policy exclusion that applies to this claim. Pass it only when the user states facts that clearly match a specific exclusion, never speculatively. Valid codes differ per policy; if the tool returns an error listing valid values, pick from that list or drop this field."
+              },
+              "sub_limit_category": {
+                "type": "string",
+                "enum": [
+                  "baggage",
+                  "bail_assistance",
+                  "buildings",
+                  "cancellation",
+                  "child",
+                  "child_under_21",
+                  "contents",
+                  "electronics_jewelry",
+                  "main_member",
+                  "medical",
+                  "portable_electronics",
+                  "screen_replacements_per_year",
+                  "spouse",
+                  "stolen_cash",
+                  "tick_borne_diseases",
+                  "towing",
+                  "windscreen"
+                ],
+                "description": "The specific sub-limited item the claim is for, such as contents, child, or windscreen. Valid values differ per policy; if the tool returns an error listing valid values, retry with one of those."
+              },
+              "disability_onset_date": {
+                "type": "string",
+                "description": "For disability claims with a deferred period, the date the disability began, in YYYY-MM-DD format, if the user has stated it."
+              }
+            },
+            "required": [
+              "policy_id",
+              "claim_type",
+              "claim_amount",
+              "claim_date"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "toolSpec": {
+        "name": "search_policy_documents",
+        "description": "Searches the synthetic policy documents and returns text chunks with their source file. Use it for questions about what a policy covers, its exclusions, waiting periods, limits, and definitions. Do not use it for premium numbers or claim decisions. Phrase the query around the coverage type and topic, not the policy ID; a policy ID in the query makes retrieval worse. Each result includes a source file name, such as POL-0006.txt; if the user asked about a specific policy and that file is not among the results, say so rather than answering from a different policy's text. A high score does not mean the text answers the question; read it, and never fill gaps from general insurance knowledge.",
+        "inputSchema": {
+          "json": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "description": "A short natural language search query about the coverage type and topic, without a policy ID."
+              }
+            },
+            "required": [
+              "query"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    }
+  ]
+}
