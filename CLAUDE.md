@@ -40,7 +40,8 @@ before starting non-trivial work.
 - Simple beats complex. If a task is fighting for more than roughly the
   time budgeted in the brief for that day, take the documented fallback
   and move on rather than pushing for the "better" solution.
-- This is a portfolio/demo project on a hard deadline (submit Sunday),
+- This is a portfolio/demo project on a hard deadline (submit Thursday
+  1 October 2026, Friday 2 October as buffer),
   not production software. Don't add auth, rate limiting, retries,
   multi-tenancy, or other production hardening unless the brief asks
   for it — that's explicitly out of scope.

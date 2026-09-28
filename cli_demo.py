@@ -115,7 +115,13 @@ def run_check_claim(args):
     print(f"Eligible: {result['eligible']}")
     print(f"Reason: {result['reason']}")
     if result["approved_amount"] != event["claim_amount"]:
-        print(f"Approved amount: R{result['approved_amount']:,} (capped)")
+        # "(capped)" only when a sub-limit or coverage-amount cap actually
+        # applied — an excess-only reduction isn't a cap, and the reason
+        # string above already says "less R<x> excess" or spells out that
+        # nothing is payable, so no separate label is needed for that case.
+        was_capped = "CAPPED_AT_COVERAGE_AMOUNT_" in result["reason"] or "SUB_LIMIT_APPLIED_" in result["reason"]
+        suffix = " (capped)" if was_capped else ""
+        print(f"Approved amount: R{result['approved_amount']:,}{suffix}")
 
 
 def main():

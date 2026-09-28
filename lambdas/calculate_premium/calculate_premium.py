@@ -20,13 +20,19 @@ VALID_COVERAGE_TYPES = ["life", "critical_illness", "disability", "funeral"]
 def lambda_handler(event, context):
     """
     Input event:
-        age: number, cast to int (rejected if not a whole number, e.g.
-            "34.7" is invalid input, not silently truncated)
-        coverage_amount: number, > 0 and <= 10,000,000
+        age: number, cast to int. Rejected (not silently truncated) if
+            it isn't a whole number: "34.7" and the float 34.7 are both
+            invalid, and so is a bool (bools are technically ints in
+            Python but aren't ages).
+        coverage_amount: number, > 0 and <= 10,000,000, at most 2 decimal
+            places (it's a currency amount), not a bool.
         coverage_type: one of VALID_COVERAGE_TYPES
-        risk_factors: dict[str, bool], optional, defaults to {}. Keys
-            that aren't valid multipliers for the given coverage_type
-            are silently filtered out, not treated as an error.
+        risk_factors: dict[str, bool], optional, defaults to {}. Must be
+            a dict, else rejected on "risk_factors" (not a crash). Keys
+            that aren't valid multipliers for the given coverage_type are
+            silently filtered out — but a key that IS valid for this
+            coverage_type must have a real bool value (not "yes", 1, etc)
+            or the whole risk_factors input is rejected.
 
     Success return:
         {"premium_estimate": number, "breakdown": str, "error": None}
@@ -54,24 +60,47 @@ def lambda_handler(event, context):
     if coverage_type not in VALID_COVERAGE_TYPES:
         errors["coverage_type"] = f"must be one of {VALID_COVERAGE_TYPES}"
 
-    # independent of coverage_type, can always be checked
-    if not isinstance(coverage_amount, (int, float)) or not (0 < coverage_amount <= 10_000_000):
-        errors["coverage_amount"] = "must be a positive number, max 10,000,000"
+    # independent of coverage_type, can always be checked. bool is
+    # rejected explicitly: it's a subclass of int in Python, so
+    # isinstance(True, (int, float)) is True and True == 1, which would
+    # otherwise silently pass as a coverage_amount of 1. round(x, 2) == x
+    # rejects more than 2 decimal places (this is a currency amount).
+    if (
+        isinstance(coverage_amount, bool)
+        or not isinstance(coverage_amount, (int, float))
+        or not (0 < coverage_amount <= 10_000_000)
+        or round(coverage_amount, 2) != coverage_amount
+    ):
+        errors["coverage_amount"] = (
+            "must be a positive number, max 10,000,000, with at most 2 decimal places"
+        )
 
     # age band check only runs if coverage_type was valid — this is the
     # "skip if coverage_type invalid" rule you decided on
     age = None
     matched_band = None
     if "coverage_type" not in errors:
-        try:
-            # int("34.7") raises ValueError — fractional-age strings are
-            # rejected, not truncated via int(float(age_raw)). Age is a
-            # whole number of years; silently truncating would hide a
-            # data-quality problem from the caller.
-            age = int(age_raw)
-        except (TypeError, ValueError):
+        if isinstance(age_raw, bool):
+            # bool is an int subclass; True/False are not ages.
             errors["age"] = "must be a whole number"
+        elif isinstance(age_raw, float):
+            # A fractional float (34.7) is rejected the same way a
+            # fractional string ("34.7") already was — silently truncating
+            # via int(age_raw) would hide a data-quality problem from the
+            # caller. An integer-valued float (34.0) is accepted.
+            if age_raw.is_integer():
+                age = int(age_raw)
+            else:
+                errors["age"] = "must be a whole number"
         else:
+            try:
+                # int("34.7") raises ValueError — fractional-age strings
+                # are rejected the same way.
+                age = int(age_raw)
+            except (TypeError, ValueError):
+                errors["age"] = "must be a whole number"
+
+        if "age" not in errors:
             bands = RATE_TABLE[coverage_type]["age_bands"]
             matched_band = next(
                 (b for b in bands if b["min_age"] <= age <= b["max_age"]),
@@ -79,6 +108,24 @@ def lambda_handler(event, context):
             )
             if matched_band is None:
                 errors["age"] = f"no rate band for age {age} under {coverage_type}"
+
+    # risk_factors must be a dict — a list or string has no valid multiplier
+    # keys to check and would otherwise crash the lookups below with an
+    # AttributeError instead of returning a clean error.
+    if not isinstance(risk_factors, dict):
+        errors["risk_factors"] = "must be a dict of risk factor name to true/false"
+    elif "coverage_type" not in errors:
+        # Keys that ARE valid multipliers for this coverage_type must have
+        # a real bool value (not "yes", 1, etc) — unknown keys are still
+        # silently filtered, per the existing rule, but a recognized key
+        # with a non-bool value is treated as bad input, not filtered.
+        valid_multipliers = RATE_TABLE[coverage_type]["risk_multipliers"]
+        bad_keys = [
+            name for name in valid_multipliers
+            if name in risk_factors and not isinstance(risk_factors[name], bool)
+        ]
+        if bad_keys:
+            errors["risk_factors"] = f"{bad_keys} must be true or false"
 
     if errors:
         return {

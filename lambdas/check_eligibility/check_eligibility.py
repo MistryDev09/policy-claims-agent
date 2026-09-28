@@ -24,13 +24,19 @@ def lambda_handler(event, context):
             coverage_type
         claim_amount: number, required, > 0
         claim_date: str "YYYY-MM-DD", required
-        diagnosis_date: str "YYYY-MM-DD", optional. Drives the waiting-
-            period check instead of claim_date when coverage_type is
-            critical_illness (a policy can exclude an illness diagnosed
-            inside the waiting period even if the claim itself is filed
-            later).
-        claim_subtype: str, optional, e.g. "collision". Only consulted for
-            the motor / cover_variant exclusion check.
+        diagnosis_date: str "YYYY-MM-DD". REQUIRED when the resolved
+            policy's coverage_type is critical_illness (otherwise
+            optional/unused) — drives the waiting-period check instead of
+            claim_date (a policy can exclude an illness diagnosed inside
+            the waiting period even if the claim itself is filed later).
+            Missing it on a critical_illness claim is a validation error,
+            not a silent fall-back to claim_date.
+        claim_subtype: str, e.g. "collision". REQUIRED when the resolved
+            policy's coverage_type is motor and cover_variant is
+            third_party_fire_theft (otherwise optional/unused) — without
+            it there's no way to tell a covered peril (fire, theft) from
+            an excluded one (collision). Missing it in that case is a
+            validation error, not a silent approval.
         exclusion_code: str, optional, exact code checked against the
             policy's exclusion_codes list.
         sub_limit_category: str, optional, key into the policy's
@@ -49,13 +55,18 @@ def lambda_handler(event, context):
         present-and-null. An unrecognized sub_limit_category or
         exclusion_code is a validation error (not a silent no-op), and
         the message lists the policy's actual valid values so a caller
-        can self-correct.
+        can self-correct. A missing diagnosis_date/claim_subtype where
+        the policy requires one (see above) is also a validation error,
+        with message text aimed at telling the caller what to go ask the
+        user for.
 
     Denial checks run in order and short-circuit at the first one that
     fires. Capping (sub-limit, else overall coverage_amount) only happens
     once every denial-type check has passed clean. If the policy carries
     an `excess` (POL-0005, POL-0012 in this dataset), it's deducted from
-    the approved amount last, floored at 0.
+    the approved amount last, floored at 0 — if the excess alone wipes out
+    the payout, `reason` says so explicitly instead of implying a normal
+    within-limit approval.
     """
     policy_id = event.get("policy_id")
     claim_type = event.get("claim_type")
@@ -126,6 +137,31 @@ def lambda_handler(event, context):
             errors["exclusion_code"] = (
                 f"not a valid exclusion code for this policy (valid: {valid_codes})"
             )
+
+    # diagnosis_date is required (not just optional) for critical_illness —
+    # without it, the waiting-period check falls back to claim_date, which
+    # is exactly the trap this field exists to catch (a diagnosis made
+    # inside the waiting period is excluded even if the claim is filed
+    # later). Fail closed instead of silently using the wrong date.
+    if policy is not None and policy.get("coverage_type") == "critical_illness" and diagnosis_date_raw is None:
+        errors["diagnosis_date"] = (
+            "required for critical_illness claims — ask the user when the condition was diagnosed"
+        )
+
+    # claim_subtype is required (not just optional) for third_party_fire_
+    # theft motor policies — without it there's no way to tell a covered
+    # peril (fire, theft) from an excluded one (collision), and today the
+    # claim would silently be approved either way.
+    if (
+        policy is not None
+        and policy.get("coverage_type") == "motor"
+        and policy.get("cover_variant") == "third_party_fire_theft"
+        and claim_subtype is None
+    ):
+        errors["claim_subtype"] = (
+            "required for third-party/fire/theft motor claims — ask the user which peril applies "
+            "(e.g. 'collision', 'fire', 'theft')"
+        )
 
     if errors:
         return {**echo(), "error": errors}
@@ -221,10 +257,17 @@ def lambda_handler(event, context):
     # policy excess: a fixed amount the policyholder carries themselves on
     # any approved payout (motor/device policies in this dataset). Applied
     # last, after any sub-limit/coverage-amount capping, and floored at 0.
+    # When the excess wipes out the payout entirely, say so plainly rather
+    # than appending "less R<x> excess" to a "within coverage limit"
+    # sentence that's no longer true once nothing is actually payable.
     excess = policy.get("excess")
     if excess:
-        approved_amount = max(0, approved_amount - excess)
-        reason_notes.append(f"less R{excess} excess")
+        pre_excess_amount = approved_amount
+        approved_amount = max(0, pre_excess_amount - excess)
+        if approved_amount == 0 and pre_excess_amount <= excess:
+            reason_notes = [f"claim amount does not exceed the R{excess} excess — nothing payable"]
+        else:
+            reason_notes.append(f"less R{excess} excess")
 
     return {
         **echo(),

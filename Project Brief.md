@@ -1,6 +1,6 @@
 **Purpose of this document:** context for any future coding session (Claude Code or otherwise) working on this project. Treat every "Definition of Done" as a hard checkpoint, not a suggestion.
 
-**Why this project exists:** applying to the Sanlam Data, AI and Engineering Academy (closing date 27 Sept 2026, targeting submission this Sunday). The listing explicitly names AWS, Bedrock, AI AgentCore, Claude, and agentic engineering. A hiring manager tip said to demonstrate AWS skills directly. This project is scoped to prove that, not to be a complete product.
+**Why this project exists:** applying to the Sanlam Data, AI and Engineering Academy (closing date 2 October 2026, targeting submission Thursday 1 October, Friday 2 October as buffer). The listing explicitly names AWS, Bedrock, AI AgentCore, Claude, and agentic engineering. A hiring manager tip said to demonstrate AWS skills directly. This project is scoped to prove that, not to be a complete product.
 
 **Working constraint:** 4-5 hours/day, Tue-Sun. Simple beats complex. If a step is fighting you for more than the time budgeted, take the documented fallback and move on. A finished small thing beats an unfinished impressive thing.
 
@@ -150,7 +150,7 @@ sanlam-insurance-agent/
 - Eval set with logged results
 - Demo video
 - README that's honest about scope and limitations
-- Application submitted Sunday
+- Application submitted Thursday 1 October (Friday 2 October as buffer)
 
 ## What we are deliberately not doing
 

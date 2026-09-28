@@ -139,10 +139,13 @@ to look up existing claims.
 - `calculate_premium_estimate`: fixed the relative-path bug (`BASE_DIR =
   os.path.dirname(os.path.abspath(__file__))` instead of a bare
   `open("rate_table.json")`, which would have broken under Lambda's
-  `/var/task` cwd). Confirmed the age-parsing bug was already handled
-  correctly in the draft (`int("34.7")` raises `ValueError`, so
-  fractional-age strings are rejected, not silently truncated) —
-  documented this as a deliberate choice rather than an accident.
+  `/var/task` cwd). At the time, the age-parsing bug looked already
+  handled correctly in the draft (`int("34.7")` raises `ValueError`, so
+  fractional-age *strings* are rejected) — **correction, see the Day 4
+  pre-work entry below:** this was only true for strings. A real float
+  `34.7` (as opposed to the string `"34.7"`) was silently truncated to
+  34 via `int(34.7)` until the Day 4 pre-work fix; that gap is now closed
+  for both forms.
 - `check_claim_eligibility`: new. Input is structured (not a `claim_id`
   lookup) — `policy_id`, `claim_type`, `claim_amount`, `claim_date`, plus
   four optional fields added to let a structured caller express claim
@@ -247,9 +250,22 @@ non-pending claims replay correctly against the handler**, including the
 ones the task brief expected might need `xfail` (CLM-006, CLM-008,
 CLM-009, CLM-010 — all exclusion-based denials): the handler's generic
 `exclusion_code` field is sufficient to reproduce them once the exact
-code is supplied, so none needed `xfail`. This is a genuine (if narrow)
-validation that `check_claim_eligibility`'s logic agrees with every
-recorded outcome in the synthetic dataset.
+code is supplied, so none needed `xfail`.
+
+**Correction (this was overstated when first written):** for the four
+exclusion-based denials, this is *not* independent validation that
+`check_claim_eligibility` agrees with the recorded outcome — the test
+derives `exclusion_code` from the very `reason_codes` string that states
+the outcome, then feeds it back in. All it proves is that *given* the
+correct exclusion code, the handler correctly denies and reports
+`approved_amount: 0` — the handler never independently decides whether
+`COLLISION_NOT_COVERED` *should* apply to a given claim; the caller
+(test, or later the Day 4 agent) asserts that. `exclusion_code` is
+caller-asserted by design (see the Day 4 pre-work README-limitations
+stub below) — the one exception is the motor/`third_party_fire_theft`
++ `claim_subtype` path, which *is* the handler's own domain logic and
+is independently exercised (CLM-008/009 now also require `claim_subtype`
+directly, not just `exclusion_code`, per the Day 4 pre-work fix).
 
 **Assumptions made about the handler's event shape** (documented in the
 test file itself, repeated here for visibility):
@@ -320,6 +336,115 @@ just CLM-007).
 waiting periods, POL-0022's missing `end_date`, and deferred-period skip
 behavior (see the earlier Day 3 entry) — none of today's fixes touch
 those.
+
+---
+
+## Day 4 pre-work: input validation, fail-closed optional fields, excess reason
+
+Ran a TDD pass on both handlers ahead of the Day 4 agent-loop work:
+wrote failing tests reproducing 8 real gaps (see below), fixed the
+handlers, fixed the tests those fixes broke, then re-ran boundary
+mutation tests on `calculate_premium` to confirm the existing suite
+still catches off-by-one errors. Full suite: **59 passed, 1 skipped, 0
+failed** (up from 48+1 — 11 new tests, 5 changed).
+
+**Fixes:**
+1. `calculate_premium`: a real float age (`34.7`, as opposed to the
+   already-rejected string `"34.7"`) was silently truncated to 34 via
+   `int(34.7)`. Now rejected the same as the string form; an
+   integer-valued float (`34.0`) is still accepted.
+2. `calculate_premium`: `coverage_amount=True` passed validation (bool is
+   an `int` subclass in Python, so `isinstance(True, (int, float))` is
+   `True` and `True == 1`). Now explicitly rejected.
+3. `calculate_premium`: `coverage_amount` now must have at most 2 decimal
+   places (`round(x, 2) == x`) — it's a currency amount. `1000.505`
+   rejected, `1000.50` still accepted.
+4. `calculate_premium`: `risk_factors` must be a `dict`, else a clean
+   error instead of an `AttributeError` crash (a list or string blew up
+   `risk_factors.get(name)`). A recognized key (valid multiplier for the
+   given `coverage_type`) with a non-bool value (e.g. `"yes"`, `1`) is
+   now an error naming the field, not silently filtered — unknown keys
+   are still silently filtered as before.
+5. `check_claim_eligibility`: `diagnosis_date` is now **required**
+   (validation error, not optional) when the resolved policy's
+   `coverage_type` is `critical_illness` — previously a missing
+   `diagnosis_date` silently fell back to `claim_date`, which is exactly
+   the failure mode the diagnosis-date trap (POL-0018/CLM-012) exists to
+   catch. Error text tells the caller to go ask the user for it.
+6. `check_claim_eligibility`: `claim_subtype` is now **required** when
+   the resolved policy is `motor` with `cover_variant:
+   third_party_fire_theft` — previously a missing `claim_subtype`
+   silently approved everything, including collision claims that should
+   be denied. Error text lists example values (`collision`, `fire`,
+   `theft`).
+7. `check_claim_eligibility`: when a policy's `excess` fully absorbs the
+   payout (`approved_amount` floors at 0), `reason` now says so plainly
+   (`"claim amount does not exceed the R<excess> excess — nothing
+   payable"`) instead of appending "less R<x> excess" to a "within
+   coverage limit" sentence that's no longer true once nothing is
+   payable.
+8. `cli_demo.py`: the `(capped)` label on `Approved amount:` now only
+   prints when a sub-limit or coverage-amount cap actually applied
+   (checked via the `SUB_LIMIT_APPLIED_`/`CAPPED_AT_COVERAGE_AMOUNT_`
+   markers in `reason`) — previously it printed whenever
+   `approved_amount != claim_amount` for *any* reason, including a pure
+   excess deduction, which isn't a cap.
+
+**Tests changed (not just added), and why:**
+- `test_calculate_premium.py`: moved `("life", 34, 500000, {"smoker": 1},
+  325.0)` out of the success cases and into the error cases (expecting
+  `error["risk_factors"]`) — fix #4 above deliberately supersedes the
+  old "truthy-but-not-True is silently filtered" rule for a *recognized*
+  key; this is a sanctioned behavior change, not a loosened assertion.
+- `test_check_eligibility.py`: the replay test for CLM-002, CLM-008,
+  CLM-009, and CLM-012 now supplies `diagnosis_date`/`claim_subtype`
+  values taken from `Trap_data_reference.md` (CLM-012's diagnosis date
+  `2024-03-15` and CLM-008/009's `claim_subtype: "collision"` are
+  documented there; CLM-002 has no distinct diagnosis date recorded
+  anywhere, so it uses `date_filed` as the most defensible real value —
+  the claim is still denied either way, well inside the 180-day waiting
+  period). Fixes #5 and #6 above made these claims newly fail validation
+  without those fields.
+- `test_check_eligibility.py`: strengthened (not loosened)
+  `test_excess_floors_at_zero_not_negative` to also assert the new
+  explicit reason text, and added
+  `test_excess_exactly_equal_to_claim_amount_floors_at_zero` for the
+  boundary case (`claim_amount == excess`).
+
+**Boundary mutation tests on `calculate_premium`** (run, confirmed
+failure, reverted via `git checkout`):
+- age-band lookup `<= max_age` → `< max_age`: caught by the existing
+  `life age 75` boundary case (no new test needed).
+- `coverage_amount <= 10_000_000` → `< 10_000_000`: caught by the
+  existing `coverage_amount = 10_000_000` boundary case (no new test
+  needed).
+
+**README-limitations stub** (for Day 6, carried forward from this
+session's findings — order these under a "Known limitations" heading):
+- Order of operations in `check_claim_eligibility`: sub-limit cap is
+  checked first; if none applies, the overall `coverage_amount` cap is
+  checked; `excess` (if the policy has one) is deducted last, floored at
+  0, from whichever of those produced the pre-excess approved amount.
+- Claims exceeding the overall `coverage_amount` (not a named sub-limit)
+  are approved-and-capped, same as sub-limits — not denied outright.
+- `excess` is only modelled for policies that carry the field
+  (`POL-0005`, `POL-0012` in this dataset) and is a flat deduction, not
+  a percentage or a per-claim-type variant.
+- `risk_factors` validation: a key valid for the given `coverage_type`
+  must be a real `bool`; unknown keys are silently filtered; the whole
+  input must be a `dict`.
+- `exclusion_code` is **caller-asserted** — the handler doesn't decide
+  whether an exclusion applies to a claim's facts, it just checks
+  whether the code the caller supplied is a real code on this policy and
+  denies if so. The Day 4 agent (or a human) is responsible for deciding
+  which exclusion, if any, applies before calling this tool with it.
+- Per-claim-subtype waiting periods (POL-0012/POL-0023, theft vs.
+  accidental-damage having opposite wait structures) are not modelled —
+  a single flat `waiting_period_days` is used regardless of subtype.
+- POL-0022 (`single_trip`, no `end_date` on file) has its travel
+  date-bounds check skipped, the same as the genuinely-dateless
+  `annual_multi_trip` policies — a simplification, not a fully correct
+  distinction between the two `cover_variant`s.
 
 ---
 

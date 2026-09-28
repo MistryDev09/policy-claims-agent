@@ -53,6 +53,27 @@ def _derive_extra_fields(claim, policy):
     return extra
 
 
+# claims.json has no diagnosis_date / claim_subtype fields (those are
+# handler-only structured inputs the Day 4 agent would supply from its
+# own claim intake, not something this flat dataset records). Now that
+# the handler requires them in these two situations, the replay test
+# needs real values to supply — taken from Trap_data_reference.md, not
+# invented to make the test pass:
+#   - CLM-012 is the documented diagnosis-date trap itself: "diagnosis
+#     2024-03-15, policy start 2024-02-01, 90-day window ends ~2024-05-01"
+#   - CLM-008/CLM-009 are the documented "collision claims against
+#     third-party-only policies" trap
+#   - CLM-002 has no distinct diagnosis date recorded anywhere; the most
+#     defensible real value absent that data is date_filed itself (the
+#     claim is denied either way — diagnosed the same day it was filed
+#     is still well inside the 180-day waiting period)
+REPLAY_EXTRA_FIELDS = {
+    "CLM-002": {"diagnosis_date": "2025-12-15"},
+    "CLM-008": {"claim_subtype": "collision"},
+    "CLM-009": {"claim_subtype": "collision"},
+    "CLM-012": {"diagnosis_date": "2024-03-15"},
+}
+
 # Approved claims whose reason code names a sub-limit — approved_amount
 # must equal the sub-limit value quoted in that code, not the claimed
 # amount.
@@ -83,6 +104,7 @@ REPLAY_PARAMS = [
 def test_replay_against_claims_json(check_eligibility, claim):
     policy = POLICIES[claim["policy_id"]]
     extra = _derive_extra_fields(claim, policy)
+    extra.update(REPLAY_EXTRA_FIELDS.get(claim["claim_id"], {}))
 
     event = {
         "policy_id": claim["policy_id"],
@@ -185,6 +207,50 @@ def test_waiting_period_boundary(check_eligibility):
     assert result_on_cutoff["eligible"] is True
 
 
+# --- Day 4 pre-work: fail-closed on missing required-in-context fields
+# (see PROGRESS.md). These reproduce real gaps in the current handler.
+# They FAIL against the code as it stands before the fix in this same
+# change; the fix in check_eligibility.py makes them pass without
+# loosening any assertion here.
+
+
+def test_critical_illness_without_diagnosis_date_errors(check_eligibility):
+    # CLM-012's real inputs (POL-0018, critical_illness), but with NO
+    # diagnosis_date supplied. Today this silently uses claim_date for
+    # the waiting-period check and returns eligible=True — exactly the
+    # failure mode the diagnosis-date trap exists to catch (a caller who
+    # forgets to ask for the diagnosis date gets a wrong answer instead
+    # of a prompt to go get one).
+    result = check_eligibility(
+        {
+            "policy_id": "POL-0018",
+            "claim_type": "critical_illness",
+            "claim_amount": 1000000,
+            "claim_date": "2024-06-01",
+        },
+        None,
+    )
+    assert "diagnosis_date" in result["error"]
+    assert "eligible" not in result
+
+
+def test_motor_third_party_fire_theft_without_claim_subtype_errors(check_eligibility):
+    # POL-0010 is third_party_fire_theft; without claim_subtype the
+    # handler can't tell a covered peril (fire/theft) from an excluded
+    # one (collision), so today it silently approves everything.
+    result = check_eligibility(
+        {
+            "policy_id": "POL-0010",
+            "claim_type": "motor",
+            "claim_amount": 60000,
+            "claim_date": "2026-01-05",
+        },
+        None,
+    )
+    assert "claim_subtype" in result["error"]
+    assert "eligible" not in result
+
+
 def test_excess_deducted_from_approved_amount(check_eligibility):
     # POL-0005 (motor) carries a 6,500 excess, waiting_period_days=2.
     policy = POLICIES["POL-0005"]
@@ -205,7 +271,11 @@ def test_excess_deducted_from_approved_amount(check_eligibility):
 
 def test_excess_floors_at_zero_not_negative(check_eligibility):
     # POL-0012 (device) excess is 750; a claim smaller than the excess
-    # must approve at 0, not a negative number.
+    # must approve at 0, not a negative number, and the reason must say
+    # plainly why nothing is payable — not just append "less R750 excess"
+    # to a generic "within coverage limit" sentence that no longer holds
+    # once the payout is zero. FAILS today: the reason text doesn't say
+    # this explicitly.
     policy = POLICIES["POL-0012"]
     result = check_eligibility(
         {
@@ -219,6 +289,25 @@ def test_excess_floors_at_zero_not_negative(check_eligibility):
     assert result["error"] is None
     assert result["eligible"] is True
     assert result["approved_amount"] == 0
+    assert f"does not exceed the R{policy['excess']} excess" in result["reason"]
+
+
+def test_excess_exactly_equal_to_claim_amount_floors_at_zero(check_eligibility):
+    # claim_amount exactly equal to the excess — still nothing payable.
+    policy = POLICIES["POL-0012"]
+    result = check_eligibility(
+        {
+            "policy_id": "POL-0012",
+            "claim_type": "device",
+            "claim_amount": policy["excess"],
+            "claim_date": "2026-07-01",
+        },
+        None,
+    )
+    assert result["error"] is None
+    assert result["eligible"] is True
+    assert result["approved_amount"] == 0
+    assert f"does not exceed the R{policy['excess']} excess" in result["reason"]
 
 
 def test_unknown_sub_limit_category_lists_valid_values(check_eligibility):
