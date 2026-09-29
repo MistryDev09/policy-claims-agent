@@ -7,6 +7,12 @@ AI and Engineering Academy application: it shows hands-on AWS, Bedrock,
 AgentCore and agentic engineering work on synthetic data, and is scoped as
 a demo, not production software.
 
+Policy questions are answered with retrieval-augmented generation (RAG):
+the agent queries a Bedrock Knowledge Base (S3 Vectors) for relevant
+policy-document chunks and grounds its answer in them. Premium estimates
+and claim-eligibility checks go through tool calls (Lambda) instead, since
+they need exact, structured answers rather than retrieved text.
+
 ## Architecture
 
 ```
