@@ -164,3 +164,61 @@ def test_check_answer_contains_any_no_match_fails(check_helpers):
 
 def test_check_answer_contains_any_any_one_of_several_candidates_matches(check_helpers):
     assert check_helpers.check_answer_contains_any("The premium is R487.50 per month.", ["999", "487.50"]) is True
+
+
+# --- check_answer_contains_any, mode="text" ---
+
+
+def test_check_answer_contains_any_text_mode_case_insensitive_substring_matches(check_helpers):
+    assert check_helpers.check_answer_contains_any("Your claim was DENIED.", ["denied"], mode="text") is True
+
+
+def test_check_answer_contains_any_text_mode_no_match_fails(check_helpers):
+    assert check_helpers.check_answer_contains_any("Your claim is eligible.", ["denied"], mode="text") is False
+
+
+def test_check_answer_contains_any_default_mode_stays_digits_regression(check_helpers):
+    assert check_helpers.check_answer_contains_any("R38,500 approved", ["38500"]) is True
+
+
+def test_check_answer_contains_any_text_mode_does_not_also_digit_strip(check_helpers):
+    assert check_helpers.check_answer_contains_any("R38,500 approved", ["38500"], mode="text") is False
+
+
+def test_check_answer_contains_any_text_mode_empty_candidates_still_passes(check_helpers):
+    assert check_helpers.check_answer_contains_any("anything at all", [], mode="text") is True
+
+
+def test_check_answer_contains_any_invalid_mode_raises_value_error(check_helpers):
+    with pytest.raises(ValueError, match="bogus-mode"):
+        check_helpers.check_answer_contains_any("some text", ["x"], mode="bogus-mode")
+
+
+# --- eval/run_eval.py's expected_answer_contains_any reader ---
+#
+# Colocated here rather than in a new tests/test_run_eval.py: this is
+# one small function tied directly to check_answer_contains_any's mode
+# parameter tested above, not a separate concern worth its own file.
+
+
+@pytest.fixture(scope="session")
+def run_eval():
+    path = os.path.join(REPO_ROOT, "eval", "run_eval.py")
+    spec = importlib.util.spec_from_file_location("run_eval", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_read_expected_answer_contains_any_bare_list_means_digits_mode(run_eval):
+    scenario = {"expected_answer_contains_any": ["30"]}
+    candidates, mode = run_eval._read_expected_answer_contains_any(scenario)
+    assert candidates == ["30"]
+    assert mode == "digits"
+
+
+def test_read_expected_answer_contains_any_object_shape_reads_mode_and_values(run_eval):
+    scenario = {"expected_answer_contains_any": {"mode": "text", "values": ["denied", "not eligible"]}}
+    candidates, mode = run_eval._read_expected_answer_contains_any(scenario)
+    assert candidates == ["denied", "not eligible"]
+    assert mode == "text"

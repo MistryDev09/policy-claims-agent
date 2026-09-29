@@ -78,26 +78,54 @@ def normalize_for_match(text):
     return "".join(ch for ch in text.lower() if ch.isdigit())
 
 
-def check_answer_contains_any(answer_text, candidates):
+def _lowercase_for_match(text):
+    """Lowercase only, no digit stripping. Used by mode="text"."""
+    return text.lower()
+
+
+def check_answer_contains_any(answer_text, candidates, mode="digits"):
     """
     If candidates is empty, always returns True: there is nothing to
     check, so this is what lets a scenario with no fixed expected
     wording (eval/scenarios.json ids 3, 6, 10, 13) skip this check
-    without being marked as failing it.
+    without being marked as failing it. This holds under either mode.
 
-    Otherwise, normalizes both answer_text and every candidate with
+    mode="digits" (the default, unchanged from before this session):
+    normalizes both answer_text and every candidate with
     normalize_for_match (digits only, case-insensitive) and returns
     True if the normalized answer contains any normalized candidate as
     a substring. This matches amounts robustly against comma, space,
     or currency-symbol formatting differences, e.g. "R38,500" and
-    "38500" normalize to the same digit string.
+    "38500" normalize to the same digit string. A text-only candidate
+    such as "denied" normalizes to an empty string under this mode and
+    can never match; use mode="text" for that.
+
+    mode="text": lowercases both sides only (via _lowercase_for_match,
+    a separate helper, since normalize_for_match's job stays digits
+    only) and does a plain substring check, with no digit stripping.
+    A digits-only candidate does not accidentally match under this
+    mode either: "text" mode never falls back to "digits" behavior.
+
+    Any other mode value raises ValueError naming the bad value,
+    rather than silently defaulting to "digits".
     """
+    if mode not in ("digits", "text"):
+        raise ValueError(f"unknown mode: {mode!r}")
+
     if not candidates:
         return True
 
-    normalized_answer = normalize_for_match(answer_text)
+    if mode == "digits":
+        normalized_answer = normalize_for_match(answer_text)
+        for candidate in candidates:
+            normalized_candidate = normalize_for_match(candidate)
+            if normalized_candidate and normalized_candidate in normalized_answer:
+                return True
+        return False
+
+    # mode == "text"
+    lowered_answer = _lowercase_for_match(answer_text)
     for candidate in candidates:
-        normalized_candidate = normalize_for_match(candidate)
-        if normalized_candidate and normalized_candidate in normalized_answer:
+        if _lowercase_for_match(candidate) in lowered_answer:
             return True
     return False

@@ -938,3 +938,12 @@ No eval run has happened yet. No pass rate is claimed.
 
 Suite: 173 passed, 1 skipped, 0 failed (17 new tests, all in
 `tests/test_check_helpers.py`).
+
+**Follow-up fix, before the eval was first run against the gateway:**
+`check_answer_contains_any` gained a `mode="text"` option (default stays
+`mode="digits"`, unchanged) after the digits-only normalization was
+found to silently make 6 of the 24 scenarios (ids 4, 11, 12, 16, 17,
+18) unfalsifiable on outcome, not just on the tool call, since their
+text-only candidates like "denied" or "HIV" strip to an empty string
+and can never match. Suite: 181 passed, 1 skipped, 0 failed (8 more new
+tests).

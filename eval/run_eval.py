@@ -80,6 +80,21 @@ def run_lambda_scenario(scenario):
     return ok, result, mismatches
 
 
+def _read_expected_answer_contains_any(scenario):
+    """
+    expected_answer_contains_any is either a bare list (mode="digits",
+    the original shape, kept for backward compatibility) or an object
+    {"mode": "text"|"digits", "values": [...]}. Returns (candidates,
+    mode) either way, so run_agent_scenario always calls
+    check_answer_contains_any the same way regardless of which shape a
+    given scenario uses.
+    """
+    field = scenario["expected_answer_contains_any"]
+    if isinstance(field, list):
+        return field, "digits"
+    return field["values"], field["mode"]
+
+
 def run_agent_scenario(scenario, client, kb_client):
     messages = [{"role": "user", "content": [{"text": scenario["question"]}]}]
     final_text, trace = tool_loop.run_turn(messages, client=client, kb_client=kb_client)
@@ -89,7 +104,8 @@ def run_agent_scenario(scenario, client, kb_client):
         final_text, trace = tool_loop.run_turn(messages, client=client, kb_client=kb_client)
 
     sequence_ok, sequence_reason = check_tool_sequence(trace, scenario["expected_tool_sequence"])
-    answer_ok = check_answer_contains_any(final_text, scenario["expected_answer_contains_any"])
+    candidates, mode = _read_expected_answer_contains_any(scenario)
+    answer_ok = check_answer_contains_any(final_text, candidates, mode=mode)
 
     ok = sequence_ok and answer_ok
     reason = ""
