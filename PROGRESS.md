@@ -1,6 +1,6 @@
 # Progress Log
 
-Companion to `Project Brief - Insurance Policy & Claims Agent`. Update this
+Companion to `docs/project-brief.md`. Update this
 after each day so any future session (Claude Code or otherwise) has real
 state to work from instead of re-deriving it.
 
@@ -32,7 +32,7 @@ everything in eu-west-1 all week; do not mix regions.
   device/pet/legal are deliberately excluded from premium calc — they're
   asset-rated in reality, not age-rated. `calculate_premium_estimate`
   must reject/handle these gracefully, not silently misapply life rates.
-- `trap-data-reference.md` — catalog of deliberate edge cases for eval
+- `docs/trap-data-reference.md` — catalog of deliberate edge cases for eval
   design (sub-limit exceeded, waiting-period-by-subtype, diagnosis-date
   vs claim-filed-date, motor cover_variant traps, etc). Read this before
   writing `check_claim_eligibility`.
@@ -43,7 +43,7 @@ CLM-014 are `approved` and capped at the sub-limit. Pick one behavior
 before building the eligibility Lambda on Day 3. Real insurers pay up to
 the sub-limit rather than declining outright, so `approved-and-capped` is
 the more realistic default — but this is a decision to make explicitly,
-not inherit by accident. Full detail in `trap-data-reference.md`.
+not inherit by accident. Full detail in `docs/trap-data-reference.md`.
 
 **AWS infrastructure — done:**
 - S3 bucket: `sanlam-insurance-agent-devakmistry-2026` (eu-west-1), all
@@ -77,7 +77,7 @@ retrieval testing, Lambda functions, agent loop, AgentCore deployment.
 - Embeddings: Titan Text Embeddings V2, 1024 dims, floating-point,
   default chunking (~300 tokens).
 - Vector store: Amazon S3 Vectors, quick-create (not OpenSearch
-  Serverless — see `CONTEXT.md` for the cost rationale).
+  Serverless — see `docs/context.md` for the cost rationale).
 - Data source scoped to
   `s3://sanlam-insurance-agent-devakmistry-2026/policies/` — excludes
   `claims.json` / `rate_table.json`.
@@ -90,7 +90,7 @@ retrieval testing, Lambda functions, agent loop, AgentCore deployment.
 - AWS root user cannot create Bedrock Knowledge Bases (platform
   restriction). Created IAM user `devakmistry-admin` (`AdministratorAccess`)
   for this and all subsequent AWS work. Rationale documented in
-  `CONTEXT.md`.
+  `docs/context.md`.
 
 **Sync:**
 - Synced 24/24 documents successfully.
@@ -101,7 +101,7 @@ retrieval testing, Lambda functions, agent loop, AgentCore deployment.
 **Retrieval testing:**
 - Tested `RetrieveAndGenerate` with 6 manual questions against real
   content from POL-0006, POL-0008, POL-0011: **5/6 correct and properly
-  sourced**, 1 reproducible failure (logged in `Trap_data_reference.md` —
+  sourced**, 1 reproducible failure (logged in `docs/trap-data-reference.md` —
   policy ID + common term causes cross-document bleed).
 
 **Day 2 Definition of Done met:** correct, sourced answers from the
@@ -403,7 +403,7 @@ failed** (up from 48+1 — 11 new tests, 5 changed).
   key; this is a sanctioned behavior change, not a loosened assertion.
 - `test_check_eligibility.py`: the replay test for CLM-002, CLM-008,
   CLM-009, and CLM-012 now supplies `diagnosis_date`/`claim_subtype`
-  values taken from `Trap_data_reference.md` (CLM-012's diagnosis date
+  values taken from `docs/trap-data-reference.md` (CLM-012's diagnosis date
   `2024-03-15` and CLM-008/009's `claim_subtype: "collision"` are
   documented there; CLM-002 has no distinct diagnosis date recorded
   anywhere, so it uses `date_filed` as the most defensible real value —
@@ -597,7 +597,7 @@ file path (reusing `cli_demo.py`'s `_load_handler`, not a second copy of
 it); `search_policy_documents` calls `bedrock-agent-runtime.retrieve()`.
 
 **KB findings carried into the loop's design** (from Day 2's retrieval
-testing and `Trap_data_reference.md`, not re-verified this session — no
+testing and `docs/trap-data-reference.md`, not re-verified this session — no
 AWS calls were made while writing this code):
 - A relevance score alone can't tell you whether a chunk answers the
   question — `dispatch()` drops `score` entirely from what it returns to
@@ -746,7 +746,7 @@ the error's actual coverage type, and the eligibility result was
 correct. But `search_policy_documents` used a neutral query ("theft
 waiting period", no product term) and still missed POL-0006 entirely,
 the same class of retrieval failure documented in
-`Trap_data_reference.md`. **Partial**, matching what was expected going
+`docs/trap-data-reference.md`. **Partial**, matching what was expected going
 in.
 
 Root cause once compared against Q1 in the same transcript: Q1's query
@@ -888,7 +888,7 @@ alone satisfies the Day 4 requirement.
 `eval/scenarios.json` is written: 24 scenarios total, 18 agent-level
 (ids 1-18) and 6 lambda-level (ids 19-24). One scenario (id 13, category
 `limitation`) is intentionally `strict: false`, a per-claim-subtype
-waiting-period observation from `Trap_data_reference.md`, never counted
+waiting-period observation from `docs/trap-data-reference.md`, never counted
 toward a pass rate. Every policy ID and expected value in the file was
 checked against the real data, not guessed: the 6 lambda-level
 scenarios were run directly against the local handlers this session
@@ -963,69 +963,5 @@ process is supposed to surface.
 
 ## Day 5 eval results
 
-Full honesty about the whole process, not just the final number, since
-that is the only way this section is useful to anyone reading it later.
-
-**Before fixing scenarios 3/8/14, two full gateway runs
-(20260928T222735Z and 20260929T060733Z) both showed the same result:**
-20/23 on the strict scenarios, 3 failures, all three read from the
-actual transcript rather than trusted from the pass/fail line alone:
-- Scenarios 8 and 14 required the agent to guess `claim_type` wrong
-  (`motor`) before self-correcting to the right one (`home`). The real
-  transcript showed the agent inferring the correct type on the first
-  attempt in both cases, helped by contextual words like "burglary,"
-  a better outcome than the assertion allowed for, not a failure.
-  Fixed by asserting only the correct final state, since scenario 9
-  already exercises the self-correction mechanism directly.
-- Scenario 3 was phrased as a premium/cost question ("how much would
-  X cost me") but asserted a `search_policy_documents` call; the
-  agent correctly routed it through the premium-refusal path instead,
-  which the assertion did not allow for. Fixed by rewording the
-  question to an unambiguous document question with nothing in the KB
-  to answer it.
-
-**After that fix, three further full gateway runs, reported exactly as
-they came out rather than rounded to "it's fixed now":**
-- 20260929T124954Z: 23/23.
-- 20260929T130113Z: 22/23. The one failure was scenario 3 again, but a
-  different and unrelated cause: the agent asked for a policy ID
-  before searching, since the reworded question (deliberately) does
-  not name one, so `search_policy_documents` was never called on that
-  particular run. This is a real, minor flakiness in how scenario 3 is
-  phrased, not yet fixed, and is being recorded honestly rather than
-  treated as the earlier design bug resurfacing.
-- 20260929T130818Z: 23/23.
-
-**Scenario 13 (`limitation`, `strict: false`, intentionally never
-pass/failed) was run twice and showed two different behaviors, which
-is itself the most useful finding of the eval, not a coincidence to
-gloss over:**
-- 20260929T124954Z: the agent passed today's date as `claim_date`
-  instead of the stated incident date (2026-06-06), so the tool
-  technically and correctly returned `eligible: true` against the
-  input it was actually given. The agent then noticed the mismatch by
-  cross-referencing the retrieved POL-0012 policy text, manually
-  computed the real 5-day gap against the 14-day waiting period, and
-  overrode the tool's answer in its final response, correctly telling
-  the user the claim is not eligible.
-- 20260929T130818Z: the agent correctly passed the stated incident
-  date (2026-06-06) as `claim_date`, and the tool itself returned
-  `eligible: false`, `WAITING_PERIOD_NOT_MET`, directly, no override
-  needed.
-
-Both final answers were correct, but by two different and not equally
-reliable paths. This reveals a real schema gap, not a flaky model
-quirk: `check_claim_eligibility` has no field distinguishing "date of
-the incident" from "date the claim is filed" (`claim_date` is used for
-both), so whether waiting-period math is evaluated against the right
-date depends on whether the agent happens to map the user's stated
-incident date onto `claim_date`. When it does not, the agent has been
-observed to catch and self-correct the resulting technically-valid-
-but-substantively-wrong tool answer, but nothing guarantees that
-correction happens on every run.
-
-An eval scenario built to test one documented limitation (the flat,
-per-policy `waiting_period_days` field cannot represent per-claim-
-subtype rules) surfaced a more important, previously unnoticed one
-instead (no incident-date field). That is the eval process working as
-intended, not a coincidence.
+Full eval run history and the incident-date finding moved to
+`docs/eval-findings.md`.
