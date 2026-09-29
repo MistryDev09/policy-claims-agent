@@ -57,7 +57,7 @@ def _derive_extra_fields(claim, policy):
 # handler-only structured inputs the Day 4 agent would supply from its
 # own claim intake, not something this flat dataset records). Now that
 # the handler requires them in these two situations, the replay test
-# needs real values to supply — taken from Trap_data_reference.md, not
+# needs real values to supply — taken from docs/trap-data-reference.md, not
 # invented to make the test pass:
 #   - CLM-012 is the documented diagnosis-date trap itself: "diagnosis
 #     2024-03-15, policy start 2024-02-01, 90-day window ends ~2024-05-01"

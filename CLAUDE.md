@@ -5,13 +5,13 @@ into every message. Fuller detail lives in the files below; read them
 before starting non-trivial work.
 
 ## Read first
-- `CONTEXT.md` — overall purpose, standing decisions, scope boundaries.
+- `docs/context.md` — overall purpose, standing decisions, scope boundaries.
   Don't re-litigate anything in there without a good reason.
 - `PROGRESS.md` — current status, what's done, what's open. Update this
   at the end of any work session where something got completed or
   decided.
-- `Project Brief` — full day-by-day plan and per-day Definition of Done.
-- `data/Trap_data_reference.md` — deliberate edge cases in the synthetic
+- `docs/project-brief.md` — full day-by-day plan and per-day Definition of Done.
+- `docs/trap-data-reference.md` — deliberate edge cases in the synthetic
   data. Read before writing `check_claim_eligibility` or eval scenarios.
 
 ## Fixed facts — don't deviate without updating this file
@@ -30,7 +30,7 @@ before starting non-trivial work.
 - AWS work happens under IAM user `devakmistry-admin`, not root.
 - Known limitation: retrieval can return wrong-document chunks when a
   query combines a policy ID with a common term (see
-  `data/Trap_data_reference.md`). Relevant to the Day 4 agent design —
+  `docs/trap-data-reference.md`). Relevant to the Day 4 agent design —
   the `check_claim_eligibility` Lambda takes policy ID as a structured
   argument and is immune to this; only free-text KB queries are exposed.
   Consider whether tool schemas should carry policy ID as structured

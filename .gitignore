@@ -5,6 +5,9 @@
 # OS junk
 .DS_Store
 
+# IDE project files
+.idea/
+
 # Python
 __pycache__/
 *.pyc

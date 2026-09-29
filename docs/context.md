@@ -1,6 +1,6 @@
 # Project Context
 
-Quick primer. Read this first, then `Project Brief` for the day-by-day
+Quick primer. Read this first, then `project-brief.md` for the day-by-day
 plan, then `PROGRESS.md` for what's actually been done. This file doesn't
 change day to day — it's the "why" and "what," not the "what's left."
 
@@ -62,7 +62,7 @@ it doesn't — either is a legitimate result, not a failure.
   conflicts with the $15 CloudWatch billing alarm. S3 Vectors is storage +
   per-query billed with no idle compute floor, GA since Dec 2025,
   available in eu-west-1. Tradeoff: pure vector search, no keyword/hybrid
-  layer (see `Trap_data_reference.md`).
+  layer (see `trap-data-reference.md`).
 - **Self-managed "Knowledge Base with vector store" path**, not AWS's
   newer "Managed Knowledge Base" (launched June 2026, now the
   AWS-recommended default). Managed KB fully abstracts the embedding model
