@@ -65,6 +65,26 @@ tools switch between running as a plain Python function, a real
   `GATEWAY_URL`, `TOKEN_URL`, `CLIENT_ID`, `CLIENT_SECRET`, `SCOPE`, each
   set in `.env` (gitignored, never committed).
 
+## Eval results
+
+`eval/scenarios.json` holds 24 scenarios: 18 agent-level (run through
+the full Converse/Gateway loop) and 6 Lambda-level (direct), covering
+document Q&A, premium calculation, claim eligibility, multi-tool
+questions, self-correction, and refusals. One scenario is intentionally
+excluded from pass/fail (a known data-modeling limitation, logged not
+graded).
+
+Two full runs against the deployed AgentCore Gateway both scored 23/23
+on the strict scenarios, after an initial run surfaced three
+scenario-design bugs that were then fixed. See `PROGRESS.md`'s "Day 5
+eval results" for the full account, including a run that scored 22/23
+on an unrelated, still-open scenario flakiness. Raw detail lives in
+`eval/scenarios.json` and `eval/results/`.
+
+A small eval set run a handful of times is evidence of behavior on
+these specific cases, not a guarantee of correctness in general,
+especially given the incident-date finding below.
+
 ## Known limitations
 - Uses synthetic policy and claims data only, not real policyholder
   data.
@@ -101,6 +121,15 @@ tools switch between running as a plain Python function, a real
   happened to land on the right document, so a wrong-document pull
   under this pattern remains possible and is covered by a dedicated
   Day 5 eval scenario.
+- `check_claim_eligibility` has no distinct incident-date field;
+  `claim_date` is used both for waiting-period math and as the nominal
+  filing date. When a user describes a past incident date separately
+  from today, whether the agent maps it onto `claim_date` is not
+  guaranteed and was observed to vary between runs during Day 5
+  evaluation. When it is not mapped correctly, the agent has been
+  observed to catch and correct the resulting tool answer by
+  cross-referencing the retrieved policy document, but this is not a
+  guaranteed safeguard.
 
 ## Future work
 - At real scale, the agent would call a `get_policy_details(policy_id)`
@@ -117,10 +146,10 @@ tools switch between running as a plain Python function, a real
   document by ID instead of relying on semantic ranking alone.
 - AgentCore Runtime hosting was not attempted; only the Gateway was
   completed for Day 4.
-- `check_claim_eligibility` has no field for when a loss actually
-  happened that is distinct from `claim_date`. An `incident_date`
-  field, separate from `claim_date` (the date the claim is filed),
-  would let waiting-period logic check against when the loss occurred
-  rather than against the filing date, which can be considerably
-  later. Found via the Day 5 eval set (scenario 13); not implemented
-  yet, since it needs both a schema change and a full retest cycle.
+- An `incident_date` field on `check_claim_eligibility`, separate from
+  `claim_date` (the filing date), so waiting-period and deferred-period
+  math is always evaluated against the date the loss actually occurred
+  rather than depending on how the agent maps a user's stated date
+  onto the existing field. Found via the Day 5 eval set (scenario 13);
+  not implemented yet, since it needs both a schema change and a full
+  retest cycle.
