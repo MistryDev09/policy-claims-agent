@@ -6,7 +6,7 @@ Usage:
     export AWS_PROFILE=your-profile   # or set AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
     python test_kb_retrieval.py --kb-id XXXXXXXXXX --region eu-west-1
 
-Writes results to scripts/day2-retrieval-log.md as you go, so you end up with the
+Writes results to docs/day2-retrieval-log.md as you go, so you end up with the
 "screenshot or log this working" artifact the brief asks for.
 """
 
@@ -17,7 +17,8 @@ import boto3
 
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_LOG_PATH = os.path.join(SCRIPT_DIR, "day2-retrieval-log.md")
+REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+DEFAULT_LOG_PATH = os.path.join(REPO_ROOT, "docs", "day2-retrieval-log.md")
 
 
 QUESTIONS = [
