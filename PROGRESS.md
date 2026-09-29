@@ -947,3 +947,14 @@ found to silently make 6 of the 24 scenarios (ids 4, 11, 12, 16, 17,
 text-only candidates like "denied" or "HIV" strip to an empty string
 and can never match. Suite: 181 passed, 1 skipped, 0 failed (8 more new
 tests).
+
+**First real gateway run: 20/23 (87%).** Three failures (scenarios 3,
+8, 14) turned out to be scenario-design bugs found BY that run, not
+agent bugs: scenarios 8 and 14 required the agent to guess claim_type
+wrong before self-correcting, but the model correctly resolved it on
+the first attempt in both cases; scenario 3 asserted a KB call for a
+question phrased as a premium request, which the agent correctly
+refused via the premium path instead. All three were loosened or
+reworded to assert the correct outcome rather than a specific path,
+before a second run. This is exactly the kind of finding a good eval
+process is supposed to surface.

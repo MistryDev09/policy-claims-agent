@@ -28,12 +28,12 @@
     "category": "refusal",
     "level": "agent",
     "strict": true,
-    "question": "How much would space tourism insurance cost me?",
+    "question": "What does my policy say about coverage for alien abduction?",
     "expected_tool_sequence": [
       {"tool": "search_policy_documents", "arguments_contain": {}, "expect_status": "success"}
     ],
     "expected_answer_contains_any": [],
-    "notes": "Absurd, out-of-scope query with no matching coverage in the documents. Graded by manual read of the transcript for 'does not fabricate an answer', not by a fixed refusal wording. expected_answer_contains_any is deliberately empty."
+    "notes": "Absurd, out-of-scope query with no matching coverage in any policy document. Graded by manual read of the transcript for 'does not fabricate an answer', not by a fixed refusal wording; expected_answer_contains_any is deliberately empty. The original question ('How much would space tourism insurance cost me?') was phrased as a premium request, so a real gateway run correctly treated it as one and refused via the premium-refusal path without ever calling search_policy_documents, a correct result that this scenario's assertion did not match. That premium-refusal case is already covered by scenario 6; this scenario is meant to test the separate KB-refusal case (documents genuinely don't cover something, agent must say so rather than fabricate), so the question was reworded to a clearly document-based phrasing with no cost/premium framing, removing the ambiguity."
   },
   {
     "id": 4,
@@ -88,11 +88,10 @@
     "strict": true,
     "question": "I need to claim R10,000 for a burglary under my policy POL-0006, claim date 2026-01-20.",
     "expected_tool_sequence": [
-      {"tool": "check_claim_eligibility", "arguments_contain": {"policy_id": "POL-0006", "claim_type": "motor"}, "expect_status": "error"},
       {"tool": "check_claim_eligibility", "arguments_contain": {"policy_id": "POL-0006", "claim_type": "home"}, "expect_status": "success"}
     ],
     "expected_answer_contains_any": [],
-    "notes": "claim_type self-correction: the user never states the policy's real coverage type, only its ID, so the model has to guess claim_type and self-correct on the tool's error, the same pattern documented for the Day 4 Q4 fix."
+    "notes": "claim_type self-correction: the user never states the policy's real coverage type, only its ID, so the scenario was originally written to require a wrong guess ('motor', error) before the correct retry. A real gateway run showed the model correctly inferring claim_type 'home' on the first attempt, since 'burglary' is enough context to resolve the type directly, a better outcome than the original assertion allowed for, not a failure. Loosened to require only the correct final state (one successful call with claim_type home), not a specific wrong-then-right path. Scenario 9 (sub_limit_category self-correction) already exercises the self-correction mechanism itself, so this scenario no longer needs to force it too."
   },
   {
     "id": 9,
@@ -159,12 +158,11 @@
     "strict": true,
     "question": "Is a R10,000 theft claim on POL-0006 eligible, claim date 2026-01-20, and what does the policy say about the theft waiting period?",
     "expected_tool_sequence": [
-      {"tool": "check_claim_eligibility", "arguments_contain": {"policy_id": "POL-0006", "claim_type": "motor"}, "expect_status": "error"},
       {"tool": "check_claim_eligibility", "arguments_contain": {"policy_id": "POL-0006", "claim_type": "home"}, "expect_status": "success"},
       {"tool": "search_policy_documents", "arguments_contain": {}, "expect_status": "success"}
     ],
     "expected_answer_contains_any": ["30"],
-    "notes": "Replays the actual Day 4 Q4 pattern as a graded scenario: claim_type self-correction plus a KB lookup whose query text could inherit the wrong coverage type if the agent does not re-derive it before searching."
+    "notes": "Replays the actual Day 4 Q4 pattern as a graded scenario: a KB lookup whose query text could inherit the wrong coverage type if the agent does not re-derive it before searching. Originally required a wrong claim_type guess ('motor', error) before the correct retry; a real gateway run showed the model correctly inferring claim_type 'home' on the first attempt (the question already says 'theft claim on POL-0006', enough context to resolve the type directly), a better outcome than the original assertion allowed for, not a failure. Loosened to require only the correct final eligibility call plus the KB lookup, not a specific wrong-then-right path."
   },
   {
     "id": 15,
