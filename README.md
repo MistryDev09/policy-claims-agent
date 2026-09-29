@@ -117,3 +117,10 @@ tools switch between running as a plain Python function, a real
   document by ID instead of relying on semantic ranking alone.
 - AgentCore Runtime hosting was not attempted; only the Gateway was
   completed for Day 4.
+- `check_claim_eligibility` has no field for when a loss actually
+  happened that is distinct from `claim_date`. An `incident_date`
+  field, separate from `claim_date` (the date the claim is filed),
+  would let waiting-period logic check against when the loss occurred
+  rather than against the filing date, which can be considerably
+  later. Found via the Day 5 eval set (scenario 13); not implemented
+  yet, since it needs both a schema change and a full retest cycle.
