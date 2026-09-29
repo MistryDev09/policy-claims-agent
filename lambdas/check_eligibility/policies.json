@@ -1,0 +1,263 @@
+[
+  {
+    "policy_id": "POL-0001",
+    "policyholder_name": "Thabo Nkosi",
+    "coverage_type": "life",
+    "coverage_amount": 500000,
+    "start_date": "2024-01-15",
+    "waiting_period_days": 90,
+    "status": "active",
+    "exclusion_codes": ["SELF_INFLICTED_24MO", "NON_DISCLOSURE", "CRIMINAL_ACT"]
+  },
+  {
+    "policy_id": "POL-0002",
+    "policyholder_name": "Aisha Patel",
+    "coverage_type": "critical_illness",
+    "coverage_amount": 250000,
+    "start_date": "2025-11-01",
+    "waiting_period_days": 180,
+    "status": "active",
+    "exclusion_codes": ["PRE_EXISTING_CANCER", "CONGENITAL", "PRO_CONTACT_SPORT"]
+  },
+  {
+    "policy_id": "POL-0003",
+    "policyholder_name": "Johan van der Merwe",
+    "coverage_type": "life",
+    "coverage_amount": 1200000,
+    "start_date": "2023-06-01",
+    "waiting_period_days": 90,
+    "status": "active",
+    "exclusion_codes": ["HAZARDOUS_HOBBY_NO_RIDER", "ACT_OF_WAR", "ACTIVE_MILITARY_DEPLOYMENT"]
+  },
+  {
+    "policy_id": "POL-0004",
+    "policyholder_name": "Nomvula Dlamini",
+    "coverage_type": "disability",
+    "coverage_amount": 180000,
+    "monthly_benefit": 15000,
+    "start_date": "2025-03-01",
+    "waiting_period_days": 30,
+    "deferred_period_days": 7,
+    "status": "active",
+    "exclusion_codes": ["SELF_INFLICTED", "PRE_EXISTING_BACK_12MO", "ILLEGAL_ACTIVITY"]
+  },
+  {
+    "policy_id": "POL-0005",
+    "policyholder_name": "Pieter Botha",
+    "coverage_type": "motor",
+    "coverage_amount": 320000,
+    "start_date": "2026-02-01",
+    "waiting_period_days": 2,
+    "status": "active",
+    "excess": 6500,
+    "exclusion_codes": ["DUI", "UNLICENSED_DRIVER", "RACING", "WEAR_AND_TEAR"]
+  },
+  {
+    "policy_id": "POL-0006",
+    "policyholder_name": "Lindiwe Khumalo",
+    "coverage_type": "home",
+    "coverage_amount": 1800000,
+    "sub_limits": {"buildings": 1800000, "contents": 350000},
+    "start_date": "2025-09-01",
+    "waiting_period_days": 30,
+    "status": "active",
+    "exclusion_codes": ["WEAR_AND_TEAR", "UNOCCUPIED_60_DAYS", "FLOOD_NO_RIDER"]
+  },
+  {
+    "policy_id": "POL-0007",
+    "policyholder_name": "Sarah Reddy",
+    "coverage_type": "travel",
+    "coverage_amount": 100000,
+    "sub_limits": {"medical": 100000, "cancellation": 30000, "baggage": 15000},
+    "start_date": "2026-04-01",
+    "end_date": "2026-04-20",
+    "waiting_period_days": 0,
+    "status": "active",
+    "exclusion_codes": ["PRE_EXISTING_CONDITION_UNDECLARED", "EXTREME_SPORTS_NO_RIDER", "TRAVEL_ADVISORY_COUNTRY"]
+  },
+  {
+    "policy_id": "POL-0008",
+    "policyholder_name": "Zanele Mokoena",
+    "coverage_type": "funeral",
+    "coverage_amount": 50000,
+    "sub_limits": {"main_member": 50000, "spouse": 20000, "child": 10000},
+    "start_date": "2024-07-01",
+    "waiting_period_days": 180,
+    "status": "active",
+    "exclusion_codes": ["SUICIDE_IN_WAITING_PERIOD", "UNDISCLOSED_MEMBER", "MEMBER_NOT_ON_SCHEDULE"]
+  },
+  {
+    "policy_id": "POL-0009",
+    "policyholder_name": "Rajesh Naidoo",
+    "coverage_type": "critical_illness",
+    "coverage_amount": 400000,
+    "start_date": "2026-01-10",
+    "waiting_period_days": 90,
+    "status": "active",
+    "exclusion_codes": ["HIV_NO_RIDER", "SELF_INFLICTED", "PRE_EXISTING_12MO"]
+  },
+  {
+    "policy_id": "POL-0010",
+    "policyholder_name": "Emma Fourie",
+    "coverage_type": "motor",
+    "coverage_amount": 95000,
+    "start_date": "2025-12-01",
+    "waiting_period_days": 2,
+    "status": "active",
+    "cover_variant": "third_party_fire_theft",
+    "exclusion_codes": ["COLLISION_NOT_COVERED", "HIRE_OR_REWARD_NO_ENDORSEMENT", "UNLICENSED_DRIVER"]
+  },
+  {
+    "policy_id": "POL-0011",
+    "policyholder_name": "David Molefe",
+    "coverage_type": "life",
+    "coverage_amount": 750000,
+    "start_date": "2022-03-20",
+    "waiting_period_days": 90,
+    "status": "active",
+    "exclusion_codes": ["NON_DISCLOSURE", "CRIMINAL_ACT"]
+  },
+  {
+    "policy_id": "POL-0012",
+    "policyholder_name": "Chloe van Wyk",
+    "coverage_type": "device",
+    "coverage_amount": 28000,
+    "start_date": "2026-06-01",
+    "waiting_period_days": 14,
+    "status": "active",
+    "excess": 750,
+    "exclusion_codes": ["UNATTENDED_PUBLIC_PLACE", "WATER_DAMAGE_BEYOND_IP_RATING", "OUT_OF_WARRANTY_BREAKDOWN"]
+  },
+  {
+    "policy_id": "POL-0013",
+    "policyholder_name": "Sibusiso Zwane",
+    "coverage_type": "motor",
+    "coverage_amount": 350000,
+    "start_date": "2024-01-10",
+    "waiting_period_days": 14,
+    "status": "active",
+    "exclusion_codes": ["COMMERCIAL_FARE_PAYING", "UNROADWORTHY_TYRES", "UNLICENSED_DRIVER"],
+    "sub_limits": {"windscreen": 5000, "towing": 10000}
+  },
+  {
+    "policy_id": "POL-0014",
+    "policyholder_name": "Lerato Maseko",
+    "coverage_type": "motor",
+    "cover_variant": "third_party_fire_theft",
+    "coverage_amount": 120000,
+    "start_date": "2024-05-15",
+    "waiting_period_days": 30,
+    "status": "active",
+    "exclusion_codes": ["COLLISION_NOT_COVERED", "KEYS_IN_IGNITION", "DUI_THIRD_PARTY"]
+  },
+  {
+    "policy_id": "POL-0015",
+    "policyholder_name": "Hendrik Venter",
+    "coverage_type": "home",
+    "coverage_amount": 2500000,
+    "sub_limits": {"buildings": 2500000, "contents": 500000, "portable_electronics": 20000},
+    "start_date": "2023-10-01",
+    "waiting_period_days": 7,
+    "status": "active",
+    "exclusion_codes": ["SUBSIDENCE_HEAVE", "UNOCCUPIED_30_DAYS", "RISING_DAMP"]
+  },
+  {
+    "policy_id": "POL-0016",
+    "policyholder_name": "Anika Govender",
+    "coverage_type": "pet",
+    "coverage_amount": 40000,
+    "sub_limits": {"tick_borne_diseases": 5000},
+    "start_date": "2023-11-01",
+    "waiting_period_days": 60,
+    "status": "active",
+    "exclusion_codes": ["HEREDITARY_CONDITIONS", "DENTAL_SCALING", "ELECTIVE_PROCEDURES"]
+  },
+  {
+    "policy_id": "POL-0017",
+    "policyholder_name": "Xolani Ngcobo",
+    "coverage_type": "life",
+    "coverage_amount": 5000000,
+    "start_date": "2022-03-12",
+    "waiting_period_days": 180,
+    "status": "active",
+    "exclusion_codes": ["SUICIDE_24MO", "ILLEGAL_ACT", "UNLICENSED_PILOT"]
+  },
+  {
+    "policy_id": "POL-0018",
+    "policyholder_name": "Tariq Desai",
+    "coverage_type": "critical_illness",
+    "coverage_amount": 1000000,
+    "start_date": "2024-02-01",
+    "waiting_period_days": 90,
+    "status": "active",
+    "exclusion_codes": ["PRE_EXISTING_DIABETES", "SELF_INFLICTED", "STAGE_0_CANCER"]
+  },
+  {
+    "policy_id": "POL-0019",
+    "policyholder_name": "Jaco Swanepoel",
+    "coverage_type": "disability",
+    "monthly_benefit": 35000,
+    "coverage_amount": 420000,
+    "start_date": "2021-08-20",
+    "waiting_period_days": 30,
+    "status": "active",
+    "exclusion_codes": ["MENTAL_HEALTH", "NORMAL_PREGNANCY", "PROFESSIONAL_SPORTS"]
+  },
+  {
+    "policy_id": "POL-0020",
+    "policyholder_name": "Kgomotso Ndlovu",
+    "coverage_type": "funeral",
+    "coverage_amount": 50000,
+    "sub_limits": {"main_member": 50000, "spouse": 50000, "child_under_21": 20000},
+    "start_date": "2023-01-15",
+    "waiting_period_days": 180,
+    "status": "active",
+    "exclusion_codes": ["WAR_CIVIL_UNREST", "SUICIDE_12MO", "UNREGISTERED_DEPENDENT"]
+  },
+  {
+    "policy_id": "POL-0021",
+    "policyholder_name": "Farzanah Ebrahim",
+    "coverage_type": "travel",
+    "cover_variant": "annual_multi_trip",
+    "coverage_amount": 5000000,
+    "sub_limits": {"electronics_jewelry": 10000},
+    "start_date": "2024-01-05",
+    "waiting_period_days": 0,
+    "status": "active",
+    "exclusion_codes": ["EXTREME_SPORTS", "SANCTIONED_COUNTRIES", "PRE_EXISTING_CARDIO"]
+  },
+  {
+    "policy_id": "POL-0022",
+    "policyholder_name": "Francois du Toit",
+    "coverage_type": "travel",
+    "cover_variant": "single_trip",
+    "coverage_amount": 2000000,
+    "sub_limits": {"stolen_cash": 5000},
+    "start_date": "2024-07-10",
+    "waiting_period_days": 0,
+    "status": "active",
+    "exclusion_codes": ["QUARANTINE_COSTS", "OVERSLEEPING", "UNATTENDED_BAGGAGE"]
+  },
+  {
+    "policy_id": "POL-0023",
+    "policyholder_name": "Naledi Mofokeng",
+    "coverage_type": "device",
+    "coverage_amount": 25000,
+    "sub_limits": {"screen_replacements_per_year": 2},
+    "start_date": "2024-03-01",
+    "waiting_period_days": 14,
+    "status": "active",
+    "exclusion_codes": ["LIQUID_DAMAGE", "COSMETIC_DAMAGE", "LOSS_MISPLACED"]
+  },
+  {
+    "policy_id": "POL-0024",
+    "policyholder_name": "Willem Kruger",
+    "coverage_type": "legal",
+    "coverage_amount": 150000,
+    "sub_limits": {"bail_assistance": 10000},
+    "start_date": "2022-09-01",
+    "waiting_period_days": 90,
+    "status": "active",
+    "exclusion_codes": ["DIVORCE_FAMILY_LAW", "PRE_EXISTING_MATTER", "DEFAMATION"]
+  }
+]

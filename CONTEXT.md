@@ -14,7 +14,8 @@ AgentCore + agentic engineering skills for a specific job application, not
 to be a finished product.
 
 **Why it exists:** applying to the Sanlam Data, AI and Engineering
-Academy, closing 27 Sept 2026, targeting submission this Sunday. The
+Academy, closing 2 October 2026, targeting submission Thursday 1 October
+(Friday 2 October as buffer). The
 listing names AWS, Bedrock, AI AgentCore, Claude, and agentic engineering
 explicitly. A hiring manager tip said to demonstrate AWS skills directly
 — this project exists to prove that, nothing more.
@@ -93,7 +94,7 @@ IAM + billing alarm), Day 2 complete (Bedrock Knowledge Base
 - Eval set with logged results
 - Demo video, under 2 minutes
 - README honest about scope and limitations
-- Application submitted Sunday
+- Application submitted Thursday 1 October (Friday 2 October as buffer)
 
 If a future session is unsure whether something is in scope, the test is:
 does this prove AWS/Bedrock/agentic skill to a hiring manager reading it

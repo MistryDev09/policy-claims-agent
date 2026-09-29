@@ -41,8 +41,8 @@
     "claim_type": "home",
     "amount": 500000,
     "date_filed": "2026-01-20",
-    "status": "denied",
-    "reason_codes": ["EXCEEDS_SUB_LIMIT"]
+    "status": "approved",
+    "reason_codes": ["SUB_LIMIT_APPLIED_CONTENTS_350000"]
   },
   {
     "claim_id": "CLM-006",

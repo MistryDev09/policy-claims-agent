@@ -1,0 +1,323 @@
+[
+  {
+    "id": 1,
+    "category": "doc_qa",
+    "level": "agent",
+    "strict": true,
+    "question": "What is the waiting period for POL-0002?",
+    "expected_tool_sequence": [
+      {"tool": "search_policy_documents", "arguments_contain": {}, "expect_status": "success"}
+    ],
+    "expected_answer_contains_any": ["180"],
+    "notes": "Single, unambiguous policy (critical_illness, 180-day waiting period), not involved in any documented retrieval trap. Baseline for doc QA."
+  },
+  {
+    "id": 2,
+    "category": "doc_qa",
+    "level": "agent",
+    "strict": true,
+    "question": "What does POL-0006 say about the waiting period for theft claims?",
+    "expected_tool_sequence": [
+      {"tool": "search_policy_documents", "arguments_contain": {}, "expect_status": "success"}
+    ],
+    "expected_answer_contains_any": ["30"],
+    "notes": "The documented POL-0006 KB retrieval trap (Trap_data_reference.md): a query containing 'theft' can retrieve chunks from POL-0010/POL-0012/POL-0013/POL-0014 instead. Checking for '30' catches a wrong-policy answer even if the tool trace looks clean, since those other policies' theft-related text does not use 30 days."
+  },
+  {
+    "id": 3,
+    "category": "refusal",
+    "level": "agent",
+    "strict": true,
+    "question": "What does my policy say about coverage for alien abduction?",
+    "expected_tool_sequence": [
+      {"tool": "search_policy_documents", "arguments_contain": {}, "expect_status": "success"}
+    ],
+    "expected_answer_contains_any": [],
+    "notes": "Absurd, out-of-scope query with no matching coverage in any policy document. Graded by manual read of the transcript for 'does not fabricate an answer', not by a fixed refusal wording; expected_answer_contains_any is deliberately empty. The original question ('How much would space tourism insurance cost me?') was phrased as a premium request, so a real gateway run correctly treated it as one and refused via the premium-refusal path without ever calling search_policy_documents, a correct result that this scenario's assertion did not match. That premium-refusal case is already covered by scenario 6; this scenario is meant to test the separate KB-refusal case (documents genuinely don't cover something, agent must say so rather than fabricate), so the question was reworded to a clearly document-based phrasing with no cost/premium framing, removing the ambiguity."
+  },
+  {
+    "id": 4,
+    "category": "doc_qa",
+    "level": "agent",
+    "strict": true,
+    "question": "Does POL-0009 exclude HIV or AIDS related critical illness claims?",
+    "expected_tool_sequence": [
+      {"tool": "search_policy_documents", "arguments_contain": {}, "expect_status": "success"}
+    ],
+    "expected_answer_contains_any": {"mode": "text", "values": ["HIV", "POL-0009"]},
+    "notes": "Overlapping-exclusions retrieval check: POL-0002, POL-0009, and POL-0018 are all critical_illness with different exclusion sets. Restored to a mode=\"text\" check (either identifying detail is acceptable, an OR) after the digits-only default was found to make this scenario unfalsifiable on outcome, since 'HIV' has no digits and can never match under mode=\"digits\"."
+  },
+  {
+    "id": 5,
+    "category": "premium",
+    "level": "agent",
+    "strict": true,
+    "question": "I'm 35, a smoker, and want R500,000 of life cover. What would the monthly premium be?",
+    "expected_tool_sequence": [
+      {"tool": "calculate_premium_estimate", "arguments_contain": {"age": 35, "coverage_type": "life"}, "expect_status": "success"}
+    ],
+    "expected_answer_contains_any": ["487.50", "487.5", "48750"],
+    "notes": "Known-good pattern already verified against the real Lambda (325.0 base x 1.5 smoker multiplier = 487.50)."
+  },
+  {
+    "id": 6,
+    "category": "refusal",
+    "level": "agent",
+    "strict": true,
+    "question": "How much would pet insurance cost for my 2 year old dog?",
+    "expected_tool_sequence": [],
+    "expected_answer_contains_any": [],
+    "notes": "Pet is not a rateable coverage_type. expected_tool_sequence is deliberately empty and STRICT: calculate_premium_estimate must not be called at all. Graded also by manual read for 'refuses, does not fabricate a number'."
+  },
+  {
+    "id": 7,
+    "category": "eligibility",
+    "level": "agent",
+    "strict": true,
+    "question": "I have a life policy POL-0001 and want to claim the full R500,000, claim date 2024-08-01. Am I eligible?",
+    "expected_tool_sequence": [
+      {"tool": "check_claim_eligibility", "arguments_contain": {"policy_id": "POL-0001"}, "expect_status": "success"}
+    ],
+    "expected_answer_contains_any": ["500,000", "500000"],
+    "notes": "Plain success baseline, reproducing CLM-001 (already-approved, no traps): eligible true, approved_amount 500000, verified directly against the local handler this session."
+  },
+  {
+    "id": 8,
+    "category": "self_correct",
+    "level": "agent",
+    "strict": true,
+    "question": "I need to claim R10,000 for a burglary under my policy POL-0006, claim date 2026-01-20.",
+    "expected_tool_sequence": [
+      {"tool": "check_claim_eligibility", "arguments_contain": {"policy_id": "POL-0006", "claim_type": "home"}, "expect_status": "success"}
+    ],
+    "expected_answer_contains_any": [],
+    "notes": "claim_type self-correction: the user never states the policy's real coverage type, only its ID, so the scenario was originally written to require a wrong guess ('motor', error) before the correct retry. A real gateway run showed the model correctly inferring claim_type 'home' on the first attempt, since 'burglary' is enough context to resolve the type directly, a better outcome than the original assertion allowed for, not a failure. Loosened to require only the correct final state (one successful call with claim_type home), not a specific wrong-then-right path. Scenario 9 (sub_limit_category self-correction) already exercises the self-correction mechanism itself, so this scenario no longer needs to force it too."
+  },
+  {
+    "id": 9,
+    "category": "self_correct",
+    "level": "agent",
+    "strict": true,
+    "question": "My child passed away and I need to claim R15,000 under my funeral policy POL-0020, claim date 2024-01-01.",
+    "expected_tool_sequence": [
+      {"tool": "check_claim_eligibility", "arguments_contain": {"policy_id": "POL-0020", "sub_limit_category": "child"}, "expect_status": "error"},
+      {"tool": "check_claim_eligibility", "arguments_contain": {"policy_id": "POL-0020", "sub_limit_category": "child_under_21"}, "expect_status": "success"}
+    ],
+    "expected_answer_contains_any": [],
+    "notes": "sub_limit_category self-correction, matching the observed Day 4 Q5 trace: the model's first natural guess is 'child', POL-0020's real key is 'child_under_21', and the tool's error lists the valid values for the model to retry with."
+  },
+  {
+    "id": 10,
+    "category": "eligibility",
+    "level": "agent",
+    "strict": true,
+    "question": "I want to claim R1,000,000 under my critical illness policy POL-0018, claim date 2024-06-01.",
+    "expected_tool_sequence": [],
+    "expected_answer_contains_any": [],
+    "notes": "No diagnosis_date is mentioned anywhere in the question, single turn, no follow_up. expected_tool_sequence is deliberately empty and STRICT: the agent must ask for the diagnosis date rather than calling check_claim_eligibility with a guessed or missing value, per the system prompt's explicit 'ask the user for it on every critical_illness claim' rule for this field. Graded also by manual read for 'asks for diagnosis date, does not guess or proceed'."
+  },
+  {
+    "id": 11,
+    "category": "eligibility",
+    "level": "agent",
+    "strict": true,
+    "question": "I want to claim R1,000,000 under my critical illness policy POL-0018, claim date 2024-06-01.",
+    "follow_up": "The diagnosis date was 2024-03-15.",
+    "expected_tool_sequence": [
+      {"tool": "check_claim_eligibility", "arguments_contain": {"policy_id": "POL-0018", "diagnosis_date": "2024-03-15"}, "expect_status": "success"}
+    ],
+    "expected_answer_contains_any": {"mode": "text", "values": ["not eligible", "denied", "waiting period"]},
+    "notes": "Same setup as scenario 10, now with the diagnosis date supplied on a second turn. Only the second run_turn call (after the follow_up) is graded. The tool succeeds and returns eligible false (WAITING_PERIOD_NOT_MET, the diagnosis-date-vs-claim-date trap), which is still tool status 'success' since it is not a validation error. Restored to a mode=\"text\" check after the digits-only default was found to make this scenario unfalsifiable on outcome, not just the tool call."
+  },
+  {
+    "id": 12,
+    "category": "eligibility",
+    "level": "agent",
+    "strict": true,
+    "question": "My car under POL-0010 was in a collision on 2026-01-01 and I want to claim R15,000 for repairs.",
+    "expected_tool_sequence": [
+      {"tool": "check_claim_eligibility", "arguments_contain": {"policy_id": "POL-0010", "claim_subtype": "collision"}, "expect_status": "success"}
+    ],
+    "expected_answer_contains_any": {"mode": "text", "values": ["not eligible", "denied", "not covered"]},
+    "notes": "Motor cover_variant exclusion trap: POL-0010 is third_party_fire_theft, so a collision claim is excluded (EXCLUSION_MATCHED_COLLISION_NOT_COVERED), verified directly against the local handler. Tests that the agent asks for or infers claim_subtype and reports the denial plainly. Restored to a mode=\"text\" check after the digits-only default was found to make this scenario unfalsifiable on outcome, not just the tool call."
+  },
+  {
+    "id": 13,
+    "category": "limitation",
+    "level": "agent",
+    "strict": false,
+    "question": "My phone under POL-0012 was stolen, cover started 2026-06-01 and the theft happened on 2026-06-06, can I claim R28,000?",
+    "expected_tool_sequence": [],
+    "expected_answer_contains_any": [],
+    "notes": "Intentionally not pass or fail. Primary finding, discovered from a real run: check_claim_eligibility has no field distinct from claim_date for when the loss actually happened. The question states an incident date (2026-06-06) separately from the policy's start date, and the observed trace shows the agent passing that incident date straight through as claim_date, since there is nowhere else to put it. This works only because the question never states a separate, later filing date; a claim filed well after the incident would have its waiting-period check run against the wrong date under the current schema. Secondary finding, the original reason this scenario was written: a single flat waiting_period_days per policy also cannot represent per-claim-subtype rules (POL-0012/POL-0023 theft vs accidental-damage waits differ), from Trap_data_reference.md. In this specific dataset POL-0012's flat 14-day wait happens to equal its own theft-specific wait, so the denial outcome is not itself wrong; this scenario exists to observe the agent's behavior and reasoning for both findings, not to assert a specific right answer here."
+  },
+  {
+    "id": 14,
+    "category": "multi_tool",
+    "level": "agent",
+    "strict": true,
+    "question": "Is a R10,000 theft claim on POL-0006 eligible, claim date 2026-01-20, and what does the policy say about the theft waiting period?",
+    "expected_tool_sequence": [
+      {"tool": "check_claim_eligibility", "arguments_contain": {"policy_id": "POL-0006", "claim_type": "home"}, "expect_status": "success"},
+      {"tool": "search_policy_documents", "arguments_contain": {}, "expect_status": "success"}
+    ],
+    "expected_answer_contains_any": ["30"],
+    "notes": "Replays the actual Day 4 Q4 pattern as a graded scenario: a KB lookup whose query text could inherit the wrong coverage type if the agent does not re-derive it before searching. Originally required a wrong claim_type guess ('motor', error) before the correct retry; a real gateway run showed the model correctly inferring claim_type 'home' on the first attempt (the question already says 'theft claim on POL-0006', enough context to resolve the type directly), a better outcome than the original assertion allowed for, not a failure. Loosened to require only the correct final eligibility call plus the KB lookup, not a specific wrong-then-right path."
+  },
+  {
+    "id": 15,
+    "category": "multi_tool",
+    "level": "agent",
+    "strict": true,
+    "question": "I'm 46 with no health risk factors and want R300,000 of disability cover. What would the monthly premium be, and generally what's the waiting period for disability claims?",
+    "expected_tool_sequence": [
+      {"tool": "calculate_premium_estimate", "arguments_contain": {"age": 46, "coverage_type": "disability"}, "expect_status": "success"},
+      {"tool": "search_policy_documents", "arguments_contain": {}, "expect_status": "success"}
+    ],
+    "expected_answer_contains_any": [],
+    "notes": "Two independent tools in one turn: a premium calculation and a general doc question, neither depending on the other's result. No fixed answer wording checked here; the tool sequence is the point of this scenario."
+  },
+  {
+    "id": 16,
+    "category": "eligibility",
+    "level": "agent",
+    "strict": true,
+    "question": "My trip under POL-0007 ended on 2026-04-20 but I want to claim R5,000 for a claim dated 2026-05-05.",
+    "expected_tool_sequence": [
+      {"tool": "check_claim_eligibility", "arguments_contain": {"policy_id": "POL-0007"}, "expect_status": "success"}
+    ],
+    "expected_answer_contains_any": {"mode": "text", "values": ["not eligible", "denied", "outside"]},
+    "notes": "Travel date-window trap, denial side: POL-0007 is a single-trip policy with a fixed end_date; a claim dated after it is denied (TRAVEL_DATE_OUTSIDE_POLICY_WINDOW), verified directly against the local handler. Restored to a mode=\"text\" check after the digits-only default was found to make this scenario unfalsifiable on outcome, not just the tool call."
+  },
+  {
+    "id": 17,
+    "category": "eligibility",
+    "level": "agent",
+    "strict": true,
+    "question": "I want to claim R5,000 for lost baggage under my annual travel policy POL-0021, claim date 2026-08-01.",
+    "expected_tool_sequence": [
+      {"tool": "check_claim_eligibility", "arguments_contain": {"policy_id": "POL-0021"}, "expect_status": "success"}
+    ],
+    "expected_answer_contains_any": {"mode": "text", "values": ["eligible"]},
+    "notes": "Travel date-window trap, must-not-wrongly-deny side: POL-0021 is annual_multi_trip with no end_date on file, so the date-bounds check must be skipped rather than treated as a missing required field. check_tool_sequence only confirms the tool was called and its call status, not the returned eligible value, so this scenario also carried an unfalsifiable-on-outcome gap under the digits-only default; a mode=\"text\" check for 'eligible' now adds a positive check that the agent actually reports the claim as covered, not just that the tool call succeeded."
+  },
+  {
+    "id": 18,
+    "category": "eligibility",
+    "level": "agent",
+    "strict": true,
+    "question": "I became unable to work on 2026-06-01 and want to claim R15,000 under my disability policy POL-0004, claim date 2026-06-03.",
+    "expected_tool_sequence": [
+      {"tool": "check_claim_eligibility", "arguments_contain": {"policy_id": "POL-0004", "disability_onset_date": "2026-06-01"}, "expect_status": "success"}
+    ],
+    "expected_answer_contains_any": {"mode": "text", "values": ["not eligible", "denied", "deferred"]},
+    "notes": "disability_onset_date's description in agent/tools_schema.json says to pass it 'if the user has stated it', unlike diagnosis_date, whose description and the system prompt both explicitly tell the model to ask for it on every critical_illness claim. Nothing instructs the model to solicit disability_onset_date if the user omits it, so this question states the onset date directly in one turn (unlike scenario 11's follow_up), which is the faithful test of the currently-documented behavior rather than an assumption about what the model will spontaneously ask for. Verified directly against the local handler: eligible false, DEFERRED_PERIOD_NOT_MET (POL-0004's 7-day deferred period is not yet satisfied on 2026-06-03). Restored to a mode=\"text\" check after the digits-only default was found to make this scenario unfalsifiable on outcome, not just the tool call."
+  },
+  {
+    "id": 19,
+    "category": "eligibility",
+    "level": "lambda",
+    "strict": true,
+    "tool": "check_eligibility.lambda_handler",
+    "input": {
+      "policy_id": "POL-0012",
+      "claim_type": "device",
+      "claim_amount": 500,
+      "claim_date": "2026-06-20"
+    },
+    "expected": {
+      "eligible": true,
+      "approved_amount": 0,
+      "reason_contains": "does not exceed"
+    }
+  },
+  {
+    "id": 20,
+    "category": "eligibility",
+    "level": "lambda",
+    "strict": true,
+    "tool": "check_eligibility.lambda_handler",
+    "input": {
+      "policy_id": "POL-0018",
+      "claim_type": "critical_illness",
+      "claim_amount": 1000000,
+      "claim_date": "2024-06-01",
+      "diagnosis_date": "2024-03-15"
+    },
+    "expected": {
+      "eligible": false,
+      "approved_amount": 0,
+      "reason_contains": "WAITING_PERIOD_NOT_MET"
+    }
+  },
+  {
+    "id": 21,
+    "category": "eligibility",
+    "level": "lambda",
+    "strict": true,
+    "tool": "check_eligibility.lambda_handler",
+    "input": {
+      "policy_id": "POL-0006",
+      "claim_type": "home",
+      "claim_amount": 500000,
+      "claim_date": "2026-01-20",
+      "sub_limit_category": "contents"
+    },
+    "expected": {
+      "eligible": true,
+      "approved_amount": 350000
+    }
+  },
+  {
+    "id": 22,
+    "category": "premium",
+    "level": "lambda",
+    "strict": true,
+    "tool": "calculate_premium.lambda_handler",
+    "input": {
+      "age": 34.7,
+      "coverage_amount": 500000,
+      "coverage_type": "life"
+    },
+    "expected": {
+      "premium_estimate": 325.0,
+      "error": null
+    }
+  },
+  {
+    "id": 23,
+    "category": "eligibility",
+    "level": "lambda",
+    "strict": true,
+    "tool": "check_eligibility.lambda_handler",
+    "input": {
+      "policy_id": "POL-0019",
+      "claim_type": "disability",
+      "claim_amount": 20000,
+      "claim_date": "2021-08-25"
+    },
+    "expected": {
+      "eligible": false,
+      "approved_amount": 0,
+      "reason_contains": "WAITING_PERIOD_NOT_MET"
+    }
+  },
+  {
+    "id": 24,
+    "category": "eligibility",
+    "level": "lambda",
+    "strict": true,
+    "tool": "check_eligibility.lambda_handler",
+    "input": {
+      "policy_id": "POL-0013",
+      "claim_type": "motor",
+      "claim_amount": 3000,
+      "claim_date": "2026-01-01",
+      "sub_limit_category": "windscreen"
+    },
+    "expected": {
+      "eligible": true,
+      "approved_amount": 3000
+    }
+  }
+]
