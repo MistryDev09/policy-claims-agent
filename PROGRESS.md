@@ -965,3 +965,20 @@ process is supposed to surface.
 
 Full eval run history and the incident-date finding moved to
 `docs/eval-findings.md`.
+
+---
+
+## CI (GitHub Actions)
+
+Added `.github/workflows/tests.yml`: on every push, Python 3.12,
+`pip install -r requirements.txt`, then `python -m pytest -v`. No new
+tests were added; the suite is unchanged at 181 passed, 1 skipped.
+
+The first run (commit `8c6a6db`) **failed**: the workflow installed only
+`pytest`, but pytest also collects `scripts/test_kb_retrieval.py`, which
+does `import boto3` at module level, so collection died with
+`ModuleNotFoundError`. A Copilot-opened PR (#4) fixed it by adding
+`requirements.txt` (boto3, botocore[crt], pytest, all pinned) and
+installing from it. Later runs on `master` pass. Note CI still
+collects that live-AWS script (import only, `main()` doesn't run);
+`pytest tests` would avoid that if it ever matters.

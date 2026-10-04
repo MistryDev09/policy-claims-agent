@@ -69,6 +69,8 @@ they need exact, structured answers rather than retrieved text.
 - For `gateway`, load the config first with `set -a; source .env; set +a`.
   Required variables (names only, in a gitignored `.env`): `GATEWAY_URL`,
   `TOKEN_URL`, `CLIENT_ID`, `CLIENT_SECRET`, `SCOPE`
+- Run the tests (no AWS, no network): `python3 -m pytest -v`. GitHub Actions
+  (`.github/workflows/tests.yml`) runs the same command on every push.
 
 ## Eval results
 24 scenarios (23 graded, 1 intentionally logged only). After an initial
