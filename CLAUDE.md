@@ -59,5 +59,5 @@ before starting non-trivial work.
 ## Build/test commands
 - Run the full test suite (both Lambda handlers + `cli_demo.py`, no AWS,
   no network): `python3 -m pytest -v` from the repo root. First-time setup:
-  `pip install pytest` (not yet added to a `requirements.txt` — this repo
-  doesn't have one yet).
+  `pip install -r requirements.txt`. CI (`.github/workflows/tests.yml`)
+  runs the same command on every push.
